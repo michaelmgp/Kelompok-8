@@ -1,0 +1,31 @@
+{
+  "replica_rev": "e915efecc8af90993ccfc499721ebe826aadba60",
+  "effective_canister_id": "uqqxf-5h777-77774-qaaaa-cai",
+  "type": "pocket_ic",
+  "config": {
+    "http_handler": {
+      "port": null,
+      "write_port_to": null
+    },
+    "state_manager": {
+      "state_root": "/mnt/c/Users/User.DESKTOP-T74KNS1/Documents/Data Ray/uagent/Kelompok-8/icp_contracts/.dfx/network/local/state/replicated_state"
+    },
+    "crypto": {
+      "crypto_root": "/mnt/c/Users/User.DESKTOP-T74KNS1/Documents/Data Ray/uagent/Kelompok-8/icp_contracts/.dfx/network/local/state/crypto_store"
+    },
+    "artifact_pool": {
+      "consensus_pool_path": "/mnt/c/Users/User.DESKTOP-T74KNS1/Documents/Data Ray/uagent/Kelompok-8/icp_contracts/.dfx/network/local/state/consensus_pool"
+    },
+    "subnet_type": "application",
+    "btc_adapter": {
+      "enabled": false,
+      "socket_path": null
+    },
+    "canister_http_adapter": {
+      "enabled": true,
+      "socket_path": null
+    },
+    "log_level": "error",
+    "artificial_delay": 600
+  }
+}

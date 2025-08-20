@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "canisters": {
+    "job_contract": {
+      "type": "motoko",
+      "main": "src/job_contract.mo"
+    },
+    "identity_contract": {
+      "type": "motoko", 
+      "main": "src/identity_contract.mo"
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8000",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "providers": ["https://ic0.app"],
+      "type": "persistent"
+    }
+  },
+  "output_env_file": ".env",
+  "defaults": {
+    "build": {
+      "packtool": ""
+    }
+  }
+}
