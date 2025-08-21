@@ -217,6 +217,32 @@ REACT_APP_CHATBOT_URL=http://localhost:8001
 4. Test agent integrations thoroughly
 5. Maintain the Neo Aura design consistency
 
+## Troubleshooting
+
+### Linux Environment Note
+
+If you are running this project on a Linux-based environment and encounter a `TypeError [ERR_INVALID_ARG_TYPE]` during `npm run dev`, the error might originate from `vite.config.ts` or `server/vite.ts`.
+
+This is often caused by `import.meta.dirname` not being correctly resolved in some Node.js versions or configurations on Linux.
+
+**Solution:**
+
+The fix involves replacing the usage of `import.meta.dirname` with a more robust method using `import.meta.url`.
+
+1.  **In `vite.config.ts` and `server/vite.ts`:**
+    *   Add the following imports at the top of the file:
+        ```typescript
+        import path from "path";
+        import { fileURLToPath } from "url";
+        ```
+    *   Define a `__dirname` constant right after the imports:
+        ```typescript
+        const __dirname = path.dirname(fileURLToPath(import.meta.url));
+        ```
+    *   Replace all instances of `import.meta.dirname` with the newly defined `__dirname` variable.
+
+These changes ensure that file paths are resolved correctly across different environments.
+
 ## License
 
 MIT License - Built for the Web3 ecosystem
