@@ -209,14 +209,6 @@ REACT_APP_CHATBOT_URL=http://localhost:8001
 - [ ] Implement reputation system
 - [ ] Add decentralized identity
 
-## Contributing
-
-1. Follow the modular architecture
-2. Update `replit.md` with any architectural changes
-3. Ensure all APIs have proper error handling
-4. Test agent integrations thoroughly
-5. Maintain the Neo Aura design consistency
-
 ## Troubleshooting
 
 ### Linux Environment Note
@@ -242,6 +234,14 @@ The fix involves replacing the usage of `import.meta.dirname` with a more robust
     *   Replace all instances of `import.meta.dirname` with the newly defined `__dirname` variable.
 
 These changes ensure that file paths are resolved correctly across different environments.
+
+## Contributing
+
+1. Follow the modular architecture
+2. Update `replit.md` with any architectural changes
+3. Ensure all APIs have proper error handling
+4. Test agent integrations thoroughly
+5. Maintain the Neo Aura design consistency
 
 ## License
 
