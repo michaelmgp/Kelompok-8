@@ -1,36 +1,40 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Next.js Motoko CRUD Example
 
-## Getting Started
+This app demonstrates CRUD operations for ICP Motoko canisters (profile, verification, reputation) using Next.js 14 App Router, TypeScript, and TailwindCSS.
 
-First, run the development server:
+## Features
+- Create, Read, Update, Delete user profile
+- Submit and process verification
+- Add and view reputation
+- Connect to ICP canisters via Candid interface
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Setup
+1. Copy your canister IDs to `.env.local`:
+   ```env
+   NEXT_PUBLIC_IDENTITY_CANISTER_ID=uxrrr-q7777-77774-qaaaq-cai
+   NEXT_PUBLIC_JOB_CANISTER_ID=u6s2n-gx777-77774-qaaba-cai
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run the app:
+   ```bash
+   npm run dev
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Usage
+- Access the app at `http://localhost:3000`
+- Use the navigation to test CRUD for profile, verification, and reputation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ICP Integration
+- All API calls use fetch to the local ICP replica or mainnet (adjust endpoint as needed)
+- See example code in `/src/app/profile`, `/src/app/verification`, `/src/app/reputation`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Customization
+- Update canister IDs in `.env.local` as needed
+- Extend pages/components for more features
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+For more details, see CARA_PENGGUNAAN.md in your canister folder.
