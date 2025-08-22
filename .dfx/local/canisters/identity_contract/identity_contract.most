@@ -1,5 +1,48 @@
 // Version: 1.0.0
+type ReputationEntry__247073542 =
+  {
+    created_at : Int;
+    id : Text;
+    job_id : Text;
+    rating : Float;
+    review : Text;
+    reviewer : Principal;
+    user_principal : Principal
+  };
+type UserProfile__596030917 =
+  {
+    bio : Text;
+    created_at : Int;
+    email : Text;
+    experience_level : Text;
+    location : Text;
+    name : Text;
+    portfolio_url : Text;
+    principal : Principal;
+    reputation_score : Float;
+    skills : [Text];
+    updated_at : Int;
+    verification_status : VerificationStatus__438413272
+  };
+type VerificationRecord__389309344 =
+  {
+    expires_at : ?Int;
+    id : Text;
+    status : VerificationStatus__438413272;
+    user_principal : Principal;
+    verification_data : Text;
+    verification_type : Text;
+    verified_at : ?Int;
+    verifier : ?Principal
+  };
+type VerificationStatus__438413272 =
+  {#Expired; #Pending; #Rejected; #Verified};
 actor {
   stable var nextReputationId : Nat;
-  stable var nextVerificationId : Nat
+  stable var nextVerificationId : Nat;
+  stable var profilesStore : [(Principal, UserProfile__596030917)];
+  stable var reputationsStore : [(Text, ReputationEntry__247073542)];
+  stable var userReputationsStore : [(Principal, [Text])];
+  stable var userVerificationsStore : [(Principal, [Text])];
+  stable var verificationsStore : [(Text, VerificationRecord__389309344)]
 };

@@ -1,0 +1,65 @@
+type Result = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type JobStatus = 
+ variant {
+   Cancelled;
+   Completed;
+   InProgress;
+   Open;
+ };
+type JobRecord = 
+ record {
+   budget: text;
+   client: principal;
+   created_at: int;
+   deadline: opt int;
+   description: text;
+   id: text;
+   selected_freelancer: opt principal;
+   skills: vec text;
+   status: JobStatus;
+   title: text;
+ };
+type ApplicationStatus = 
+ variant {
+   Accepted;
+   Rejected;
+   Submitted;
+   UnderReview;
+   Withdrawn;
+ };
+type ApplicationRecord = 
+ record {
+   applicant: principal;
+   applied_at: int;
+   cover_letter: text;
+   id: text;
+   job_id: text;
+   proposed_budget: text;
+   reviewed_at: opt int;
+   status: ApplicationStatus;
+ };
+service : {
+  acceptApplication: (applicationId: text) -> (Result);
+  completeJob: (jobId: text) -> (Result);
+  createJob: (title: text, description: text, budget: text, skills: vec text,
+   deadline: opt int) -> (Result);
+  getAllJobs: () -> (vec JobRecord) query;
+  getApplication: (applicationId: text) -> (opt ApplicationRecord) query;
+  getContractStats: () ->
+   (record {
+      completedJobs: nat;
+      openJobs: nat;
+      totalApplications: nat;
+      totalJobs: nat;
+    }) query;
+  getJob: (jobId: text) -> (opt JobRecord) query;
+  getJobApplications: (jobId: text) -> (vec ApplicationRecord) query;
+  getMyApplications: () -> (vec ApplicationRecord);
+  getMyJobs: () -> (vec JobRecord);
+  submitApplication: (jobId: text, coverLetter: text, proposedBudget:
+   text) -> (Result);
+}

@@ -43,6 +43,7 @@ export type VerificationStatus = { 'Rejected' : null } |
   { 'Pending' : null };
 export interface _SERVICE {
   'addReputation' : ActorMethod<[Principal, string, number, string], Result>,
+  'getAllUsers' : ActorMethod<[], Array<UserProfile>>,
   'getContractStats' : ActorMethod<
     [],
     {

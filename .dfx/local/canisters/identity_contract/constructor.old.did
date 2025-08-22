@@ -46,12 +46,9 @@ type ReputationEntry =
    reviewer: principal;
    user_principal: principal;
  };
-/// * Identity Contract - ICP Smart Contract for User Identity Management
-///  * Handles user profiles, verification, and reputation on Internet Computer
 service : {
   addReputation: (userPrincipal: principal, jobId: text, rating: float64,
    review: text) -> (Result);
-  getAllUsers: () -> (vec UserProfile) query;
   getContractStats: () ->
    (record {
       averageReputation: float64;

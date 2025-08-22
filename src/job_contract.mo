@@ -14,7 +14,7 @@ import Principal "mo:base/Principal";
 import Nat "mo:base/Nat";
 import Iter "mo:base/Iter";
 
-persistent actor JobContract {
+actor JobContract {
     
     // Job status types
     public type JobStatus = {
@@ -60,8 +60,8 @@ persistent actor JobContract {
     };
     
     // Contract state
-    private var nextJobId: Nat = 1;
-    private var nextApplicationId: Nat = 1;
+    private transient var nextJobId: Nat = 1;
+    private transient var nextApplicationId: Nat = 1;
     
     private transient var jobs = HashMap.HashMap<Text, JobRecord>(10, Text.equal, Text.hash);
     private transient var applications = HashMap.HashMap<Text, ApplicationRecord>(50, Text.equal, Text.hash);

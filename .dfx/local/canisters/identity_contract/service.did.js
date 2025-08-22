@@ -45,6 +45,7 @@ export const idlFactory = ({ IDL }) => {
         [Result],
         [],
       ),
+    'getAllUsers' : IDL.Func([], [IDL.Vec(UserProfile)], ['query']),
     'getContractStats' : IDL.Func(
         [],
         [
