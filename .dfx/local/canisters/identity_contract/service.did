@@ -51,6 +51,7 @@ type ReputationEntry =
 service : {
   addReputation: (userPrincipal: principal, jobId: text, rating: float64,
    review: text) -> (Result);
+  getAllProfiles: () -> (vec UserProfile) query;
   getAllUsers: () -> (vec UserProfile) query;
   getContractStats: () ->
    (record {

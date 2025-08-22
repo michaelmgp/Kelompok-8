@@ -127,6 +127,9 @@ actor IdentityContract {
     Iter.toArray(profiles.vals())
   };
 
+   public query func getAllProfiles() : async [UserProfile] {
+    Iter.toArray(profiles.vals());
+};
   // Get user profile
   public query func getUserProfile(userPrincipal: Principal) : async ?UserProfile {
     profiles.get(userPrincipal)
