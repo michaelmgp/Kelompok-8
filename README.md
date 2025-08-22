@@ -11,8 +11,8 @@ This app demonstrates CRUD operations for ICP Motoko canisters (profile, verific
 ## Setup
 1. Copy your canister IDs to `.env.local`:
    ```env
-   NEXT_PUBLIC_IDENTITY_CANISTER_ID=uxrrr-q7777-77774-qaaaq-cai
-   NEXT_PUBLIC_JOB_CANISTER_ID=u6s2n-gx777-77774-qaaba-cai
+   NEXT_PUBLIC_IDENTITY_CANISTER_ID=
+   NEXT_PUBLIC_JOB_CANISTER_ID=
    ```
 2. Install dependencies:
    ```bash
