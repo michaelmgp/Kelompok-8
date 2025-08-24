@@ -1,77 +1,103 @@
-CareerVerse Frontend
+# CareerVerse - Web3 Job Agent Frontend
 
-Frontend aplikasi CareerVerse - Web3 Job Agent Platform, dibangun dengan Next.js (App Router), TailwindCSS, dan desain premium Neo Aura (glassmorphism + animasi Framer Motion).
+A modern Web3 job marketplace frontend built with **Next.js (App Router)**, **TailwindCSS**, and **Framer Motion**, featuring a premium Neo Aura glass morphism design.  
+This is the **frontend-only** implementation of the CareerVerse platform.
 
-🚀 Fitur Utama
+## Project Architecture
 
-Landing Page & Dashboard dengan desain Neo Aura
+```
+frontend/
+├── .next/                 # Build output (ignored in git)
+├── node_modules/          # Dependencies (ignored in git)
+├── public/                # Static assets (logo, images, icons)
+├── src/
+│   ├── app/               # Next.js App Router pages
+│   │   ├── page.tsx       # Landing page
+│   │   ├── analytics/     # Analytics page with charts
+│   │   ├── jobs/          # Job board page
+│   │   └── layout.tsx     # Root layout
+│   ├── components/        # UI components
+│   │   ├── home/          # Hero, Features, Stats sections
+│   │   ├── dashboard/     # Dashboard, StatsCards, Activity
+│   │   ├── analytics/     # Analytics chart components
+│   │   ├── layout/        # Sidebar, TopNavigation
+│   │   └── ui/            # Button, Card, Input, Avatar
+│   └── lib/               # Utilities
+├── tailwind.config.ts     # TailwindCSS configuration
+├── next.config.js         # Next.js configuration
+├── package.json
+└── README.md
+```
 
-Komponen modular: Hero, Sidebar, Dashboard, Analytics, Job Board
+## Tech Stack
 
-Analytics Page: grafik on-chain metrics (SVG custom charts)
+- **Framework**: Next.js 13+ (React 18, App Router)  
+- **Styling**: TailwindCSS + Neo Aura theme  
+- **Animations**: Framer Motion micro-interactions  
+- **Icons**: Lucide React  
+- **Charts**: Custom SVG-based analytics  
 
-Responsive Design (mobile-first)
+## Key Features
 
-Animasi halus dengan Framer Motion
+- 🎨 **Premium UI/UX**: Neo Aura glassmorphism design with smooth animations  
+- 📊 **Analytics Dashboard**: On-chain style metrics & charts  
+- 📱 **Responsive Layout**: Mobile-first adaptive design  
+- ⚡ **Next.js 13**: App Router, fast builds, optimized assets  
 
-Ikon modern dari Lucide React
+## Getting Started
 
-🛠️ Tech Stack
+### Prerequisites
+- Node.js 18+  
+- npm or yarn  
 
-Framework: Next.js 13+ (App Router)
+### Installation
 
-Styling: TailwindCSS
+1. **Clone and setup**
+   ```bash
+   git clone https://github.com/michaelmgp/Kelompok-8.git
+   cd Kelompok-8/frontend
+   npm install
+   ```
 
-Animations: Framer Motion
+2. **Run in development mode**
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000)
 
-Icons: Lucide React
+3. **Build for production**
+   ```bash
+   npm run build
+   npm start
+   ```
 
-📦 Instalasi & Menjalankan
-Prasyarat
+## Environment Variables
 
-Node.js 18+
+Create `.env.local` in `frontend/` (optional, if later integrating APIs):
 
-npm atau yarn
-
-Langkah Setup
-
-Clone repository & masuk ke folder frontend
-
-git clone https://github.com/michaelmgp/Kelompok-8.git
-cd Kelompok-8/frontend
-
-
-Install dependencies
-
-npm install
-# atau
-yarn install
-
-
-Jalankan development server
-
-npm run dev
-
-
-Akses di: http://localhost:3000
-
-Build untuk production
-
-npm run build
-npm start
-
-⚙️ Environment Variables
-
-Buat file .env.local di folder frontend/ (opsional, jika nanti ada integrasi API):
-
+```
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
 NEXT_PUBLIC_CHATBOT_URL=http://localhost:8001
+```
 
-📂 Struktur Folder
-frontend/
-├── .next/                
-├── node_modules/
+## Development Workflow
 
+- ✅ Setup project with Next.js + TailwindCSS  
+- ✅ Add Neo Aura design system & components  
+- ✅ Implement landing page, job board, analytics  
+- 🚧 API integration (backend/AI/ICP) pending  
 
-🧪 Testing (opsional)
-npm run lint
+## Contributing
+
+1. Use modular component structure (`src/components/`)  
+2. Follow TailwindCSS utility-first styling  
+3. Maintain Neo Aura UI consistency  
+4. Keep `.gitignore` clean (ignore `.next/`, `node_modules/`, etc.)  
+
+## License
+
+MIT License - Frontend implementation for **CareerVerse**.
+
+---
+
+✨ **CareerVerse** — A decentralized, AI-powered job ecosystem with beautiful design.  
