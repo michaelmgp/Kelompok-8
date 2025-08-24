@@ -36,13 +36,37 @@ job-agent-platform/
 │   │   └── identity_contract.mo # Motoko identity & reputation
 │   └── dfx.json                 # ICP project configuration
 │
-├── frontend/                    # Frontend Application
-│   ├── pages/
-│   │   └── Dashboard.tsx        # Main dashboard page
-│   ├── components/
-│   │   └── Sidebar.tsx          # Navigation sidebar
-│   └── api_client.js            # API communication layer
+├── frontend/                    # Frontend Application (Next.js 13+)
+│   ├── src/                     # App source code (App Router)
+│   ├── public/                  # Static assets
+│   ├── package.json             # Frontend dependencies
+│   └── ...
 │
 ├── client/                      # Current React frontend (legacy)
 └── server/                      # Current Express backend (legacy)
 ```
+
+## Menjalankan Frontend (Next.js)
+
+1. **Masuk ke folder frontend:**
+	```
+	cd frontend
+	```
+
+2. **Install dependencies:**
+	```
+	npm install
+	```
+
+3. **Jalankan development server:**
+	```
+	npm run dev
+	```
+
+4. **Buka di browser:**
+	Buka [http://localhost:5000](http://localhost:5000) untuk melihat aplikasi.
+
+5. **Akses halaman Register:**
+	Buka [http://localhost:5000/register](http://localhost:5000/register) untuk halaman pendaftaran user baru.
+
+---
