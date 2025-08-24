@@ -1,57 +1,49 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { fetchJobs } from '@/services/jobsApi';
+
+// Define an interface for the job object from the API
+interface Job {
+  id: string;
+  title: string;
+  company: string;
+  description: string | null;
+  skills: string[];
+  source_rating: number | null;
+  location: string | null;
+  posted_at: string;
+  budget_min: number | null;
+  budget_max: number | null;
+  currency: string | null;
+  rate_type: string | null;
+}
 
 export default function JobBoard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const jobs = [
-    {
-      id: 1,
-      title: "Senior Frontend Developer",
-      company: "TechCorp AI",
-      description: "Build next-generation decentralized applications using React and Web3 technologies.",
-      salary: "$120,000 - $180,000",
-      skills: ["React", "TypeScript", "Web3", "Solidity"],
-      rating: 4.8,
-      location: "Remote",
-      postedDate: "2 days ago"
-    },
-    {
-      id: 2,
-      title: "Blockchain Engineer",
-      company: "DeFi Solutions",
-      description: "Design and implement smart contracts for decentralized finance applications.",
-      salary: "$140,000 - $200,000", 
-      skills: ["Solidity", "Rust", "ICP", "Smart Contracts"],
-      rating: 4.9,
-      location: "San Francisco, CA",
-      postedDate: "1 day ago"
-    },
-    {
-      id: 3,
-      title: "AI/ML Research Scientist",
-      company: "Fetch.ai Labs",
-      description: "Research and develop autonomous agents for decentralized marketplaces.",
-      salary: "$160,000 - $220,000",
-      skills: ["Python", "TensorFlow", "Multi-Agent Systems", "Fetch.ai"],
-      rating: 4.7,
-      location: "Cambridge, UK",
-      postedDate: "3 days ago"
-    },
-    {
-      id: 4,
-      title: "Product Designer",
-      company: "Web3 Studios",
-      description: "Design intuitive interfaces for decentralized applications and blockchain tools.",
-      salary: "$90,000 - $130,000",
-      skills: ["Figma", "UI/UX", "Web3", "Design Systems"],
-      rating: 4.6,
-      location: "Remote",
-      postedDate: "1 week ago"
-    }
-  ];
+  useEffect(() => {
+    const getJobs = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchJobs();
+        setJobs(data.jobs);
+        setError(null);
+      } catch (err) {
+        setError('Failed to fetch jobs.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getJobs();
+  }, []);
+
 
   const categories = [
     { value: 'all', label: 'All Jobs' },
@@ -60,6 +52,28 @@ export default function JobBoard() {
     { value: 'ai', label: 'AI/ML' },
     { value: 'design', label: 'Design' }
   ];
+
+  const formatSalary = (job: Job) => {
+    if (job.budget_min && job.budget_max) {
+      return `${job.currency} ${job.budget_min} - ${job.budget_max}`;
+    }
+    if (job.rate_type) {
+        return `Rate type: ${job.rate_type}`;
+    }
+    return 'Not specified';
+  };
+
+  const formatPostedDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) {
+        return "1 day ago";
+    }
+    return `${diffDays} days ago`;
+  }
+
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -104,58 +118,62 @@ export default function JobBoard() {
         </div>
 
         {/* Job Listings */}
-        <div className="grid gap-6">
-          {jobs.map((job) => (
-            <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow" data-testid={`job-card-${job.id}`}>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2" data-testid={`job-title-${job.id}`}>
-                    {job.title}
-                  </h3>
-                  <p className="text-blue-600 font-medium" data-testid={`job-company-${job.id}`}>
-                    {job.company}
-                  </p>
+        {loading && <p>Loading jobs...</p>}
+        {error && <p className="text-red-500">{error}</p>}
+        {!loading && !error && (
+            <div className="grid gap-6">
+            {jobs.map((job) => (
+                <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow" data-testid={`job-card-${job.id}`}>
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2" data-testid={`job-title-${job.id}`}>
+                        {job.title}
+                    </h3>
+                    <p className="text-blue-600 font-medium" data-testid={`job-company-${job.id}`}>
+                        {job.company}
+                    </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                    <span className="text-yellow-500">⭐</span>
+                    <span className="text-gray-700 font-medium" data-testid={`job-rating-${job.id}`}>
+                        {job.source_rating || 'N/A'}
+                    </span>
+                    </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-yellow-500">⭐</span>
-                  <span className="text-gray-700 font-medium" data-testid={`job-rating-${job.id}`}>
-                    {job.rating}
-                  </span>
+
+                <p className="text-gray-600 mb-4" data-testid={`job-description-${job.id}`}>
+                    {job.description || 'No description available.'}
+                </p>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {job.skills.map((skill, index) => (
+                    <span
+                        key={index}
+                        className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                        data-testid={`job-skill-${job.id}-${index}`}
+                    >
+                        {skill}
+                    </span>
+                    ))}
                 </div>
-              </div>
 
-              <p className="text-gray-600 mb-4" data-testid={`job-description-${job.id}`}>
-                {job.description}
-              </p>
-
-              <div className="flex flex-wrap gap-2 mb-4">
-                {job.skills.map((skill, index) => (
-                  <span
-                    key={index}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
-                    data-testid={`job-skill-${job.id}-${index}`}
-                  >
-                    {skill}
-                  </span>
-                ))}
-              </div>
-
-              <div className="flex justify-between items-center">
-                <div className="flex space-x-6 text-sm text-gray-600">
-                  <span data-testid={`job-salary-${job.id}`}>💰 {job.salary}</span>
-                  <span data-testid={`job-location-${job.id}`}>📍 {job.location}</span>
-                  <span data-testid={`job-posted-${job.id}`}>🕒 {job.postedDate}</span>
+                <div className="flex justify-between items-center">
+                    <div className="flex space-x-6 text-sm text-gray-600">
+                    <span data-testid={`job-salary-${job.id}`}>💰 {formatSalary(job)}</span>
+                    <span data-testid={`job-location-${job.id}`}>📍 {job.location || 'Remote'}</span>
+                    <span data-testid={`job-posted-${job.id}`}>🕒 {formatPostedDate(job.posted_at)}</span>
+                    </div>
+                    <button
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    data-testid={`button-apply-${job.id}`}
+                    >
+                    Apply Now
+                    </button>
                 </div>
-                <button 
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  data-testid={`button-apply-${job.id}`}
-                >
-                  Apply Now
-                </button>
-              </div>
+                </div>
+            ))}
             </div>
-          ))}
-        </div>
+        )}
       </div>
     </div>
   );
