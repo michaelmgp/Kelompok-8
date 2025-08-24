@@ -1,0 +1,53 @@
+# Node Modules
+node_modules/
+frontend/node_modules/
+server/node_modules/
+
+# Build 
+.next/
+frontend/.next/
+out/
+frontend/out/
+dist/
+frontend/dist/
+build/
+frontend/build/
+.vercel/
+frontend/.vercel/
+.vite/
+frontend/.vite/
+
+# Logs & Debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment (jangan commit API keys)
+.env
+.env.*.local
+frontend/.env
+frontend/.env.*.local
+server/.env
+server/.env.*.local
+
+# System / IDE / Temp
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+.idea/
+.vscode/
+
+# Replit & lampiran lokal
+.local/
+attached_assets/
+.replit
+replit.md
+
+# Misc
+*.tgz
+*.zip
+*.tar.gz
