@@ -36,13 +36,44 @@ job-agent-platform/
 │   │   └── identity_contract.mo # Motoko identity & reputation
 │   └── dfx.json                 # ICP project configuration
 │
-├── frontend/                    # Frontend Application
-│   ├── pages/
-│   │   └── Dashboard.tsx        # Main dashboard page
-│   ├── components/
-│   │   └── Sidebar.tsx          # Navigation sidebar
-│   └── api_client.js            # API communication layer
+├── kelompok-8/                  # Next.js 14+ App Directory (repo ini)
+│   ├── app/                     # App router & pages
+│   │   ├── (auth)/              # Auth routes (login, register)
+│   │   ├── layout.tsx           # Root layout
+│   │   └── page.tsx             # Landing page
+│   ├── components/              # UI components
+│   ├── public/                  # Static assets
+│   ├── package.json             # Project dependencies
+│   └── ...
 │
 ├── client/                      # Current React frontend (legacy)
 └── server/                      # Current Express backend (legacy)
+
+## Menjalankan Aplikasi (Next.js API & Frontend)
+
+1. **Clone dan masuk ke folder repo ini:**
+	```
+	git clone <repo-url>
+	cd kelompok-8
+	```
+
+2. **Install dependencies:**
+	```
+	npm install
+	```
+
+3. **Jalankan development server:**
+	```
+	npm run dev
+	```
+
+4. **Buka di browser:**
+	Buka [http://localhost:3000](http://localhost:3000) untuk melihat aplikasi.
+
+5. **Akses halaman Register:**
+	Buka [http://localhost:3000/register](http://localhost:3000/register) untuk halaman pendaftaran user baru.
+
+6. **Akses halaman Login:**
+	Buka [http://localhost:3000/login](http://localhost:3000/login) untuk halaman Login user.
+
 ```
