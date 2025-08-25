@@ -15,6 +15,8 @@ A comprehensive **Web3 job discovery platform** powered by **Fetch.ai uAgents**,
 
 ## 🏗️ Project Architecture
 
+> **📝 Note**: All test files have been organized into the `ai_chatbot/tests/` directory for better maintainability and structure.
+
 ```
 Kelompok-8/
 ├── 📁 frontend/                    # 🌐 Next.js 14 Frontend Application
@@ -51,7 +53,27 @@ Kelompok-8/
 │   ├── 📁 chatbot/                # Core chatbot modules
 │   │   ├── 📄 __init__.py         # Package initialization
 │   │   ├── 📄 model.py            # LLM initialization and chains
-│   │   └── 📄 handlers.py         # Chat request handlers
+│   │   ├── 📄 handlers.py         # Chat request handlers
+│   │   ├── 📄 icp_integration.py  # ICP blockchain integration
+│   │   └── 📄 user_management.py  # User profile management
+│   ├── 📁 tests/                  # Comprehensive test suite
+│   │   ├── 📁 unit/               # Unit tests (6 files)
+│   │   │   ├── 📄 test_grok.py    # Grok API unit tests
+│   │   │   ├── 📄 test_handlers.py # Handler unit tests
+│   │   │   ├── 📄 test_logging.py  # Logging unit tests
+│   │   │   ├── 📄 test_models.py   # Model unit tests
+│   │   │   ├── 📄 test_prompts.py  # Prompt unit tests
+│   │   │   └── 📄 test_specific_prompt.py # Specific prompt tests
+│   │   ├── 📁 integration/        # Integration tests (4 files)
+│   │   │   ├── 📄 test_chat_endpoints.py # Chat endpoint tests
+│   │   │   ├── 📄 test_client.py   # Client integration tests
+│   │   │   ├── 📄 test_icp_integration.py # ICP integration tests
+│   │   │   └── 📄 test_api.py      # API endpoint tests
+│   │   ├── 📁 performance/        # Performance tests
+│   │   ├── 📁 utils/              # Test utilities
+│   │   ├── 📄 quick_test.py       # Quick testing utility
+│   │   ├── 📄 test_suite.py       # Comprehensive test suite
+│   │   └── 📄 run_all_tests.py    # Test runner
 │   ├── 📁 scripts/                # Security and utility scripts
 │   │   └── 📄 security-check.sh   # Automated security scanning
 │   ├── 📄 agent.py                # Fetch.ai uAgent (ASI:1 compatible)
@@ -60,13 +82,21 @@ Kelompok-8/
 │   ├── 📄 env.example             # Environment variables template
 │   ├── 📄 SETUP_GROK.md           # Grok API setup guide
 │   ├── 📄 generate_agent_seed.py  # Agent seed generation script
-│   ├── 📄 test_client.py          # uAgent testing client
-│   └── 📄 test_grok.py            # Grok API testing script
+│   ├── 📄 README.md               # Backend documentation
+│   └── 📄 chatbot.log             # Application logs
 │
 ├── 📁 icp_contracts/              # ⛓️ ICP Smart Contracts
 │   ├── 📁 src/
-│   │   └── 📄 job_contract.mo     # Motoko job management contract
-│   └── 📄 dfx.json                # DFX configuration
+│   │   ├── 📄 agent_contract.mo   # Agent management contract
+│   │   ├── 📄 chat_contract.mo    # Chat protocol contract
+│   │   ├── 📄 identity_contract.mo # User identity management
+│   │   └── 📄 job_contract.mo     # Job management contract
+│   ├── 📁 declarations/            # Contract interfaces
+│   │   ├── 📁 identity_contract/  # Identity contract declarations
+│   │   └── 📁 job_contract/       # Job contract declarations
+│   ├── 📄 dfx.json                # DFX configuration
+│   ├── 📄 CARA_PENGGUNAAN.md      # Usage instructions (ID)
+│   └── 📄 USAGE.md                 # Usage instructions (EN)
 │
 ├── 📄 README.md                    # This project overview
 ├── 📄 SECURITY.md                  # Security guidelines and tools
@@ -75,6 +105,12 @@ Kelompok-8/
 ```
 
 ## 🚀 Quick Start
+
+### Recent Improvements ✨
+- **🧹 Test Organization**: All test files moved to organized `tests/` directory
+- **📁 Clean Structure**: Root directory cleaned of scattered test files
+- **🔍 Better Testing**: Comprehensive test suite with unit, integration, and performance tests
+- **📚 Documentation**: Updated project structure and testing guidelines
 
 ### Prerequisites
 
@@ -208,6 +244,20 @@ INFO: Mailbox enabled; your agent is discoverable on Agentverse.
 
 ## 🧪 Testing
 
+### **Test Organization**
+The project includes a comprehensive test suite organized into logical categories:
+
+- **Unit Tests** (`tests/unit/`): Individual component testing
+- **Integration Tests** (`tests/integration/`): API and service integration testing
+- **Performance Tests** (`tests/performance/`): Load and stress testing
+- **Test Utilities** (`tests/utils/`): Helper functions and test data
+
+### **Run All Tests**
+```bash
+cd ai_chatbot/tests
+python run_all_tests.py
+```
+
 ### **Test Frontend:**
 1. Open http://localhost:5000
 2. Look for the **blue AI assistant icon** in the bottom-right corner
@@ -234,6 +284,7 @@ curl -X POST "http://localhost:8081/parse" \
 ### **Test uAgents:**
 ```bash
 # Test agent communication
+cd tests/integration
 python3 test_client.py
 ```
 
