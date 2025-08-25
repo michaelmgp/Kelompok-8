@@ -1,5 +1,7 @@
 # 🚀 Web3 Job Agent Platform
 
+[![Innovation Lab](https://img.shields.io/badge/innovationlab-3D8BD3)](https://img.shields.io/badge/innovationlab-3D8BD3)
+
 A comprehensive **Web3 job discovery platform** powered by **Fetch.ai uAgents**, **AI chatbot capabilities**, and **ICP smart contracts**, featuring a modern Next.js frontend with floating AI assistant.
 
 ## ✨ Features
