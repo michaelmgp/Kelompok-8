@@ -1,0 +1,60 @@
+# Core FastAPI dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# HTTP client for API calls
+aiohttp==3.9.1
+httpx==0.25.2
+
+# Authentication and security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# Fetch.ai integration (replace with actual package when available)
+# fetchai-ledger-api==0.1.0
+
+# ICP blockchain integration (replace with actual package when available)
+# icp-sdk==0.1.0
+
+# Data processing and analytics
+pandas==2.1.4
+numpy==1.25.2
+
+# Database (choose one based on your needs)
+# sqlalchemy==2.0.23
+# asyncpg==0.29.0  # For PostgreSQL
+# motor==3.3.2      # For MongoDB
+
+# Caching
+redis==5.0.1
+aioredis==2.0.1
+
+# Task queue and background jobs
+celery==5.3.4
+redis==5.0.1
+
+# Logging and monitoring
+structlog==23.2.0
+prometheus-client==0.19.0
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-mock==3.12.0
+httpx==0.25.2
+
+# Development tools
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Environment and configuration
+python-dotenv==1.0.0
+pydantic-settings==2.1.0
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3 
