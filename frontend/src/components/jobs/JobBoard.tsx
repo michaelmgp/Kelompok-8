@@ -106,8 +106,7 @@ export default function JobBoard() {
         {/* Job Listings */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {jobs.map((job) => (
-            <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-all duration-200 border border-gray-100 flex flex-col h-full" data-testid={`job-card-${job.id}`}>
-              {/* Header Section */}
+            <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow border border-gray-100" data-testid={`job-card-${job.id}`}>
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2" data-testid={`job-title-${job.id}`}>
@@ -125,12 +124,10 @@ export default function JobBoard() {
                 </div>
               </div>
 
-              {/* Description Section */}
-              <p className="text-gray-600 mb-4 text-sm line-clamp-3 flex-grow" data-testid={`job-description-${job.id}`}>
+              <p className="text-gray-600 mb-4 text-sm line-clamp-3" data-testid={`job-description-${job.id}`}>
                 {job.description}
               </p>
 
-              {/* Skills Section */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {job.skills.slice(0, 3).map((skill, index) => (
                   <span
@@ -148,8 +145,7 @@ export default function JobBoard() {
                 )}
               </div>
 
-              {/* Footer Section - Job Details and Apply Button */}
-              <div className="mt-auto space-y-3">
+              <div className="space-y-3">
                 <div className="flex flex-col space-y-2 text-xs text-gray-600">
                   <div className="flex items-center space-x-2">
                     <span>💰</span>
@@ -164,16 +160,12 @@ export default function JobBoard() {
                     <span data-testid={`job-posted-${job.id}`}>{job.postedDate}</span>
                   </div>
                 </div>
-                
-                {/* Apply Button - Centered and Symmetrical */}
-                <div className="pt-2">
-                  <button 
-                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
-                    data-testid={`button-apply-${job.id}`}
-                  >
-                    Apply Now
-                  </button>
-                </div>
+                <button 
+                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  data-testid={`button-apply-${job.id}`}
+                >
+                  Apply Now
+                </button>
               </div>
             </div>
           ))}

@@ -3,11 +3,18 @@
   "canisters": {
     "job_contract": {
       "type": "motoko",
-      "main": "src/job_contract.mo"
+      "main": "src/job_contract.mo",
+      "candid": "src/job_contract.did"
     },
     "identity_contract": {
       "type": "motoko", 
-      "main": "src/identity_contract.mo"
+      "main": "src/identity_contract.mo",
+      "candid": "src/identity_contract.did"
+    },
+    "chat_contract": {
+      "type": "motoko",
+      "main": "src/chat_contract.mo",
+      "candid": "src/chat_contract.did"
     }
   },
   "networks": {
@@ -16,6 +23,10 @@
       "type": "ephemeral"
     },
     "ic": {
+      "providers": ["https://ic0.app"],
+      "type": "persistent"
+    },
+    "teammate": {
       "providers": ["https://ic0.app"],
       "type": "persistent"
     }

@@ -1,7 +1,8 @@
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from .model import get_llm
+from .icp_integration import ICPIntegration, PersonalizedChatbot
 import json
 import logging
 
@@ -30,6 +31,25 @@ class ChatResult(BaseModel):
     message: str
     filters: Filters
     should_fetch_jobs: bool = True
+    personalized: bool = False
+    user_profile: Optional[Dict[str, Any]] = None
+    reputation_score: Optional[float] = None
+
+class ChatRequest(BaseModel):
+    user_prompt: str
+    top_k: int = 5
+    user_principal: Optional[str] = None  # ICP user principal for personalization
+
+# Global ICP integration (will be initialized in main.py)
+icp_integration: Optional[ICPIntegration] = None
+personalized_chatbot: Optional[PersonalizedChatbot] = None
+
+def set_icp_integration(integration: ICPIntegration):
+    """Set the ICP integration instance"""
+    global icp_integration, personalized_chatbot
+    icp_integration = integration
+    personalized_chatbot = PersonalizedChatbot(integration)
+    logger.info("🔗 ICP integration initialized")
 
 FILTER_PROMPT = """
 Convert the user's natural-language job request into a STRICT JSON object:
@@ -56,11 +76,53 @@ User:
 \"\"\"{user_prompt}\"\"\"
 """
 
+PERSONALIZED_FILTER_PROMPT = """
+Based on the user's profile and request, create a STRICT JSON object for job search:
+
+User Profile Context:
+{user_context}
+
+User Request: {user_prompt}
+
+Create JSON with enhanced filters considering the user's:
+- Skills and experience level
+- Location preferences  
+- Reputation and verification status
+- Previous job patterns
+
+Output ONLY valid JSON:
+{{
+  "skills": [str],
+  "keywords": [str],
+  "budget_min": int|null,
+  "budget_max": int|null,
+  "rate_type": "fixed"|"hourly"|"monthly"|null,
+  "remote": true|false|null,
+  "duration_days_max": int|null,
+  "top_k": int
+}}
+"""
+
 SUMMARY_PROMPT = """
 Write a brief, friendly message in English explaining what you will search for,
 based on the filters below (JSON). Keep it to 2–3 sentences. Do NOT list jobs.
 
 {filters_json}
+"""
+
+PERSONALIZED_SUMMARY_PROMPT = """
+Based on the user's profile and preferences, write a personalized message explaining what you will search for.
+
+User Profile:
+{user_profile}
+
+Filters: {filters_json}
+
+Write a friendly, personalized response (2-3 sentences) that:
+- Acknowledges their experience level and skills
+- Mentions their location preferences
+- References their reputation/verification status
+- Explains the enhanced search criteria
 """
 
 def _strip_code_fences(s: str) -> str:
@@ -198,7 +260,73 @@ def _extract_fallback_filters(user_prompt: str) -> dict:
         "top_k": top_k
     }
 
+async def parse_filters_with_profile(user_prompt: str, user_profile: Dict[str, Any]) -> Filters:
+    """Parse filters with user profile context for personalization"""
+    logger.info(f"🔍 Parsing filters with user profile: {user_profile.get('name', 'Unknown')}")
+    
+    llm = get_llm()
+    logger.info("🤖 Sending personalized prompt to Grok for filter parsing...")
+    
+    # Create personalized prompt
+    user_context = f"""
+    Name: {user_profile.get('name', 'Unknown')}
+    Experience: {user_profile.get('experience_level', 'Unknown')}
+    Location: {user_profile.get('location', 'Unknown')}
+    Skills: {', '.join(user_profile.get('skills', []))}
+    Reputation: {user_profile.get('reputation_score', 0.0)}/5.0
+    Verification: {user_profile.get('verification_status', 'Unknown')}
+    """
+    
+    personalized_prompt = PERSONALIZED_FILTER_PROMPT.format(
+        user_context=user_context,
+        user_prompt=user_prompt
+    )
+    
+    raw = llm.invoke(personalized_prompt).content or ""
+    logger.info(f"📝 Grok personalized response: {raw}")
+    
+    raw = _strip_code_fences(raw)
+    logger.info(f"🧹 Cleaned personalized response: {raw}")
+    
+    js = None
+    try:
+        js = json.loads(raw)
+        logger.info(f"✅ Successfully parsed personalized JSON filters: {json.dumps(js, indent=2)}")
+    except Exception as e:
+        logger.error(f"❌ Personalized JSON parsing failed: {e}")
+        logger.info("🔄 Using fallback filter extraction...")
+        js = _extract_fallback_filters(user_prompt)
+        logger.info(f"🔄 Fallback filters extracted: {json.dumps(js, indent=2)}")
+    
+    # Enhance filters with user profile
+    if personalized_chatbot and user_profile:
+        js = personalized_chatbot.enhance_filters_with_profile(js, user_profile)
+    
+    # Validate and normalize the filters
+    if js.get("rate_type") not in (None, "fixed", "hourly", "monthly"):
+        js["rate_type"] = None
+        logger.info("🔄 Reset invalid rate_type to None")
+    
+    try:
+        tk = int(js.get("top_k", 5))
+        js["top_k"] = max(1, min(tk, 20))
+        logger.info(f"📊 Set top_k to: {js['top_k']}")
+    except Exception:
+        js["top_k"] = 5
+        logger.info("🔄 Set top_k to default: 5")
+    
+    # Ensure required fields exist
+    if "skills" not in js:
+        js["skills"] = []
+    if "keywords" not in js:
+        js["keywords"] = []
+    
+    filters = Filters(**js)
+    logger.info(f"🎯 Final personalized filters: {filters.model_dump_json(indent=2)}")
+    return filters
+
 def parse_filters(user_prompt: str) -> Filters:
+    """Standard filter parsing without personalization"""
     logger.info(f"🔍 Parsing user prompt: {user_prompt}")
     
     llm = get_llm()
@@ -243,18 +371,101 @@ def parse_filters(user_prompt: str) -> Filters:
     logger.info(f"🎯 Final parsed filters: {filters.model_dump_json(indent=2)}")
     return filters
 
-def build_reply(filters: Filters) -> str:
+def build_reply(filters: Filters, user_profile: Optional[Dict[str, Any]] = None) -> str:
+    """Build reply message with optional personalization"""
     logger.info("🤖 Building reply message with Grok...")
     
     llm = get_llm()
-    response = llm.invoke(SUMMARY_PROMPT.format(filters_json=filters.model_dump_json()))
     
+    if user_profile:
+        # Personalized reply
+        user_context = f"""
+        Name: {user_profile.get('name', 'Unknown')}
+        Experience: {user_profile.get('experience_level', 'Unknown')}
+        Skills: {', '.join(user_profile.get('skills', []))}
+        """
+        
+        prompt = PERSONALIZED_SUMMARY_PROMPT.format(
+            user_profile=user_context,
+            filters_json=filters.model_dump_json()
+        )
+    else:
+        # Standard reply
+        prompt = SUMMARY_PROMPT.format(filters_json=filters.model_dump_json())
+    
+    response = llm.invoke(prompt)
     message = response.content or ""
-    logger.info(f"📝 Grok generated reply: {message}")
+    logger.info(f"📝 Grok generated {'personalized ' if user_profile else ''}reply: {message}")
     
     return message
 
+async def handle_chat_with_profile(user_prompt: str, user_principal: str) -> ChatResult:
+    """Handle chat with ICP user profile integration"""
+    logger.info("=" * 60)
+    logger.info(f"💬 PERSONALIZED CHAT REQUEST: {user_prompt}")
+    logger.info(f"👤 User Principal: {user_principal}")
+    logger.info("=" * 60)
+    
+    try:
+        # Get personalized response from ICP
+        if personalized_chatbot:
+            personalization_result = await personalized_chatbot.get_personalized_response(user_principal, user_prompt)
+            
+            if personalization_result.get("personalized"):
+                user_profile = personalization_result["user_profile"]
+                logger.info(f"🎯 Using personalized filters for {user_profile.name}")
+                
+                # Parse filters with profile context
+                filters = await parse_filters_with_profile(user_prompt, user_profile)
+                
+                # Build personalized reply
+                message = build_reply(filters, user_profile)
+                
+                result = ChatResult(
+                    message=message,
+                    filters=filters,
+                    personalized=True,
+                    user_profile=user_profile.__dict__,
+                    reputation_score=user_profile.reputation_score
+                )
+                
+                logger.info(f"✅ Personalized chat result created: {result.model_dump_json(indent=2)}")
+                return result
+            else:
+                logger.info("🔄 Falling back to standard processing")
+        
+        # Fallback to standard processing
+        filters = parse_filters(user_prompt)
+        message = build_reply(filters)
+        
+        result = ChatResult(
+            message=message,
+            filters=filters,
+            personalized=False
+        )
+        
+        logger.info(f"✅ Standard chat result created: {result.model_dump_json(indent=2)}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Error in personalized chat: {e}")
+        # Fallback to standard processing
+        filters = parse_filters(user_prompt)
+        message = build_reply(filters)
+        
+        result = ChatResult(
+            message=message,
+            filters=filters,
+            personalized=False
+        )
+        
+        return result
+    
+    finally:
+        logger.info("=" * 60)
+
 def handle_chat(user_prompt: str) -> ChatResult:
+    """Standard chat handling without personalization"""
     logger.info("=" * 60)
     logger.info(f"💬 NEW CHAT REQUEST: {user_prompt}")
     logger.info("=" * 60)
@@ -262,7 +473,7 @@ def handle_chat(user_prompt: str) -> ChatResult:
     filters = parse_filters(user_prompt)
     message = build_reply(filters)
     
-    result = ChatResult(message=message, filters=filters)
+    result = ChatResult(message=message, filters=filters, personalized=False)
     logger.info(f"✅ Chat result created: {result.model_dump_json(indent=2)}")
     logger.info("=" * 60)
     
