@@ -104,54 +104,76 @@ export default function JobBoard() {
         </div>
 
         {/* Job Listings */}
-        <div className="grid gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {jobs.map((job) => (
-            <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow" data-testid={`job-card-${job.id}`}>
+            <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-all duration-200 border border-gray-100 flex flex-col h-full" data-testid={`job-card-${job.id}`}>
+              {/* Header Section */}
               <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2" data-testid={`job-title-${job.id}`}>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2" data-testid={`job-title-${job.id}`}>
                     {job.title}
                   </h3>
-                  <p className="text-blue-600 font-medium" data-testid={`job-company-${job.id}`}>
+                  <p className="text-blue-600 font-medium text-sm" data-testid={`job-company-${job.id}`}>
                     {job.company}
                   </p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-yellow-500">⭐</span>
-                  <span className="text-gray-700 font-medium" data-testid={`job-rating-${job.id}`}>
+                <div className="flex items-center space-x-1 ml-2">
+                  <span className="text-yellow-500 text-sm">⭐</span>
+                  <span className="text-gray-700 font-medium text-sm" data-testid={`job-rating-${job.id}`}>
                     {job.rating}
                   </span>
                 </div>
               </div>
 
-              <p className="text-gray-600 mb-4" data-testid={`job-description-${job.id}`}>
+              {/* Description Section */}
+              <p className="text-gray-600 mb-4 text-sm line-clamp-3 flex-grow" data-testid={`job-description-${job.id}`}>
                 {job.description}
               </p>
 
+              {/* Skills Section */}
               <div className="flex flex-wrap gap-2 mb-4">
-                {job.skills.map((skill, index) => (
+                {job.skills.slice(0, 3).map((skill, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium"
                     data-testid={`job-skill-${job.id}-${index}`}
                   >
                     {skill}
                   </span>
                 ))}
+                {job.skills.length > 3 && (
+                  <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
+                    +{job.skills.length - 3} more
+                  </span>
+                )}
               </div>
 
-              <div className="flex justify-between items-center">
-                <div className="flex space-x-6 text-sm text-gray-600">
-                  <span data-testid={`job-salary-${job.id}`}>💰 {job.salary}</span>
-                  <span data-testid={`job-location-${job.id}`}>📍 {job.location}</span>
-                  <span data-testid={`job-posted-${job.id}`}>🕒 {job.postedDate}</span>
+              {/* Footer Section - Job Details and Apply Button */}
+              <div className="mt-auto space-y-3">
+                <div className="flex flex-col space-y-2 text-xs text-gray-600">
+                  <div className="flex items-center space-x-2">
+                    <span>💰</span>
+                    <span data-testid={`job-salary-${job.id}`}>{job.salary}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span>📍</span>
+                    <span data-testid={`job-location-${job.id}`}>{job.location}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span>🕒</span>
+                    <span data-testid={`job-posted-${job.id}`}>{job.postedDate}</span>
+                  </div>
                 </div>
-                <button 
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  data-testid={`button-apply-${job.id}`}
-                >
-                  Apply Now
-                </button>
+                
+                {/* Apply Button - Centered and Symmetrical */}
+                <div className="pt-2">
+                  <button 
+                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
+                    data-testid={`button-apply-${job.id}`}
+                  >
+                    Apply Now
+                  </button>
+                </div>
               </div>
             </div>
           ))}

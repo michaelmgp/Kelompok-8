@@ -97,7 +97,7 @@ export default function FloatingAIAssistant() {
       const errorMessage: Message = {
         id: messages.length + 2,
         type: 'ai',
-        content: "I'm sorry, I'm having trouble connecting to my AI services right now. Please check if the backend server is running on port 8081, or try again later.",
+        content: "I'm sorry, I'm having trouble connecting to my AI services right now or try again later.",
         timestamp: new Date()
       };
       
@@ -245,7 +245,7 @@ export default function FloatingAIAssistant() {
               
               {connectionStatus === 'disconnected' && (
                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-                  ❌ Cannot connect to backend. Make sure your AI chatbot service is running on port 8081.
+                  ❌ Cannot connect to backend. waiting for the service to start.
                 </div>
               )}
             </div>
