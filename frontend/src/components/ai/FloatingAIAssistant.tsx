@@ -26,6 +26,7 @@ export default function FloatingAIAssistant() {
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnectionChecking, setIsConnectionChecking] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected' | 'backend-only'>('checking');
 
   // Check API connection on component mount
@@ -34,6 +35,7 @@ export default function FloatingAIAssistant() {
   }, []);
 
   const checkAPIConnection = async () => {
+    setIsConnectionChecking(true);
     setConnectionStatus('checking');
     try {
       const connected = await apiClient.testConnection();
@@ -57,11 +59,13 @@ export default function FloatingAIAssistant() {
         setConnectionStatus('disconnected');
         setIsConnected(false);
       }
+    } finally {
+      setIsConnectionChecking(false);
     }
   };
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isTyping || !isConnected) return;
+    if (!inputMessage.trim() || isTyping || isConnectionChecking || !isConnected) return;
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -180,6 +184,11 @@ export default function FloatingAIAssistant() {
         <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
           {getConnectionStatusText()}
         </div>
+        
+        {/* Loading indicator when checking connection */}
+        {isConnectionChecking && (
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-yellow-500 border-2 border-white animate-pulse"></div>
+        )}
       </div>
     );
   }
@@ -315,14 +324,14 @@ export default function FloatingAIAssistant() {
                 <button
                   onClick={() => handleQuickAction("Find me job opportunities in blockchain and AI")}
                   className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
-                  disabled={!isConnected}
+                  disabled={!isConnected || isConnectionChecking}
                 >
                   🔍 Find Jobs
                 </button>
                 <button
                   onClick={() => handleQuickAction("Help me optimize my profile")}
                   className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 transition-colors"
-                  disabled={!isConnected}
+                  disabled={!isConnected || isConnectionChecking}
                 >
                   ⚡ Optimize
                 </button>
@@ -339,11 +348,11 @@ export default function FloatingAIAssistant() {
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                   placeholder="Ask about jobs, salary, profile..."
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={!isConnected}
+                  disabled={!isConnected || isConnectionChecking}
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!inputMessage.trim() || isTyping || !isConnected}
+                  disabled={!inputMessage.trim() || isTyping || !isConnected || isConnectionChecking}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="w-4 h-4" />

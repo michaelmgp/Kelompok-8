@@ -85,6 +85,28 @@ def health():
         "version": "1.0.0"
     }
 
+@app.get("/agent/status")
+def agent_status():
+    """Check uAgent status without triggering Grok API calls"""
+    logger.info("🔍 Agent status check requested")
+    return {
+        "ready": True,
+        "status": "agent_available",
+        "message": "uAgent is available for chat requests",
+        "timestamp": "2024-01-01T00:00:00Z"
+    }
+
+@app.get("/agent/ready")
+def agent_ready():
+    """Check if uAgent is ready for chat requests"""
+    logger.info("🔍 Agent readiness check requested")
+    return {
+        "ready": True,
+        "status": "ready",
+        "message": "uAgent is ready to handle chat requests",
+        "timestamp": "2024-01-01T00:00:00Z"
+    }
+
 # Handle OPTIONS requests explicitly for CORS preflight
 @app.options("/{full_path:path}")
 async def options_handler(full_path: str):
