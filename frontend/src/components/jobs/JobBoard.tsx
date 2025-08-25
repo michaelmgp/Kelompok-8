@@ -20,6 +20,7 @@ export default function JobBoard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showModal, setShowModal] = useState(false);
+  const [showApplyForm, setShowApplyForm] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   const jobs: Job[] = [
@@ -115,6 +116,16 @@ export default function JobBoard() {
     setSelectedJob(null);
   };
 
+  const openApplyForm = () => {
+    setShowModal(false);
+    setShowApplyForm(true);
+  };
+
+  const closeApplyForm = () => {
+    setShowApplyForm(false);
+    setSelectedJob(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -160,7 +171,7 @@ export default function JobBoard() {
         {/* Job Listings */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {jobs.map((job) => (
-            <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-all duration-200 border border-gray-100 flex flex-col h-full" data-testid={`job-card-${job.id}`}>
+            <div key={job.id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-all duration-200 border border-gray-100 flex flex-col h-full cursor-pointer" data-testid={`job-card-${job.id}`} onClick={() => openModal(job)}>
               {/* Header Section */}
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
@@ -202,7 +213,7 @@ export default function JobBoard() {
                 )}
               </div>
 
-              {/* Footer Section - Job Details and Apply Button */}
+              {/* Footer Section - Job Details */}
               <div className="mt-auto space-y-3">
                 <div className="flex flex-col space-y-2 text-xs text-gray-600">
                   <div className="flex items-center space-x-2">
@@ -218,17 +229,6 @@ export default function JobBoard() {
                     <span data-testid={`job-posted-${job.id}`}>{job.postedDate}</span>
                   </div>
                 </div>
-                
-                {/* Apply Button - Centered and Symmetrical */}
-                <div className="pt-2">
-                  <button 
-                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
-                    data-testid={`button-apply-${job.id}`}
-                    onClick={() => openModal(job)}
-                  >
-                    Apply Now
-                  </button>
-                </div>
               </div>
             </div>
           ))}
@@ -237,8 +237,8 @@ export default function JobBoard() {
 
       {/* Job Detail Modal */}
       {showModal && selectedJob && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center z-50">
-          <div className="relative p-8 bg-white w-full max-w-2xl mx-auto rounded-lg shadow-lg">
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center z-50" onClick={closeModal}>
+          <div className="relative p-8 bg-white w-full max-w-2xl mx-auto rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()}>
             <button
               className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl"
               onClick={closeModal}
@@ -279,14 +279,68 @@ export default function JobBoard() {
               </div>
             </div>
             <button
-              className="w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium shadow-sm"
-              onClick={() => {
-                alert(`Applying for ${selectedJob.title} at ${selectedJob.company}!`);
-                closeModal();
-              }}
+              className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-sm"
+              onClick={openApplyForm}
             >
-              Proceed to Apply
+              Apply Now
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Application Form Modal */}
+      {showApplyForm && selectedJob && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center z-50" onClick={closeApplyForm}>
+          <div className="relative p-8 bg-white w-full max-w-lg mx-auto rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl"
+              onClick={closeApplyForm}
+            >
+              &times;
+            </button>
+            <div className="mb-6 text-center">
+              <h2 className="text-2xl font-bold text-gray-900">{selectedJob.title}</h2>
+              <p className="text-blue-600 font-medium">{selectedJob.company}</p>
+            </div>
+            <form>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">👤</span>
+                  <input type="text" placeholder="First Name" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">👤</span>
+                  <input type="text" placeholder="Last Name" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div className="relative mb-4">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3">✉️</span>
+                <input type="email" placeholder="Email Address" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="relative col-span-1">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3">📞</span>
+                  <input type="text" placeholder="+62" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="relative col-span-2">
+                  <input type="text" placeholder="Phone Number" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                </div>
+              </div>
+              <div className="relative mb-4">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3">🔒</span>
+                <input type="password" placeholder="Password" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="relative mb-6">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3">📄</span>
+                <input type="file" className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg" />
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium shadow-sm"
+              >
+                Sign Up and Apply
+              </button>
+            </form>
           </div>
         </div>
       )}
