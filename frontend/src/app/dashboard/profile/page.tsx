@@ -389,55 +389,7 @@ export default function ProfilePage() {
             )}
           </Card>
 
-          {/* Logs Card */}
-          <Card className="p-6 border border-gray-200 bg-white mt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">🔍 Canister Sync Logs</h3>
-              <div className="flex items-center gap-2">
-                <Button 
-                  onClick={() => setLogs([])} 
-                  variant="ghost" 
-                  size="sm"
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  Clear Logs
-                </Button>
-                <span className="text-sm text-gray-500">
-                  {logs.length} logs
-                </span>
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-              {logs.length === 0 ? (
-                <div className="text-gray-500 text-center py-8">
-                  <div className="text-2xl mb-2">📝</div>
-                  <div>No logs yet. Sync with canister to see activity.</div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {logs.map((log, index) => (
-                    <div 
-                      key={index} 
-                      className={`text-sm font-mono p-2 rounded ${
-                        log.includes('✅') ? 'bg-green-100 text-green-800' :
-                        log.includes('❌') ? 'bg-red-100 text-red-800' :
-                        log.includes('⚠️') ? 'bg-yellow-100 text-yellow-800' :
-                        log.includes('🔄') ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {log}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <div className="mt-4 text-xs text-gray-500">
-              💡 Logs show real-time activity when syncing with the canister. Green = success, Red = error, Yellow = warning, Blue = in progress.
-            </div>
-          </Card>
+          
         </div>
       </div>
     </div>

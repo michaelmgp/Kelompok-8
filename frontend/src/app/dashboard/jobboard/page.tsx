@@ -182,44 +182,7 @@ export default function JobBoardPage() {
           </div>
         )}
 
-        {/* Debug Logs Card */}
-        <Card className="p-6 border border-gray-200 bg-gray-50 mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">🔍 Debug Logs</h3>
-            <div className="flex items-center gap-2">
-              <Button 
-                onClick={() => setShowLogs(!showLogs)} 
-                variant="outline" 
-                size="sm"
-                className="text-xs"
-              >
-                {showLogs ? 'Hide Logs' : 'Show Logs'}
-              </Button>
-              <Button 
-                onClick={clearLogs} 
-                variant="outline" 
-                size="sm"
-                className="text-xs"
-              >
-                Clear Logs
-              </Button>
-            </div>
-          </div>
-          
-          {showLogs && (
-            <div className="max-h-64 overflow-y-auto space-y-1">
-              {logs.length === 0 ? (
-                <p className="text-gray-500 text-sm">No logs yet. Try applying to a job to see logs.</p>
-              ) : (
-                logs.map((log, index) => (
-                  <div key={index} className="text-xs font-mono bg-white p-2 rounded border">
-                    {log}
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </Card>
+        
       </div>
     </div>
   );

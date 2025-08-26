@@ -17,7 +17,7 @@
       "type": "motoko",
       "main": "src/agent_contract.mo"
     },
-       "internet_identity": {
+    "internet_identity": {
       "type": "custom",
       "candid": "https://github.com/dfinity/internet-identity/releases/download/release-2025-04-04-v3/internet_identity.did",
       "wasm": "https://github.com/dfinity/internet-identity/releases/download/release-2025-04-04-v3/internet_identity_dev.wasm.gz",

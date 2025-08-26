@@ -135,10 +135,7 @@ export default function Sidebar() {
               <Briefcase className="w-4 h-4 text-gray-600" />
               <span>My Applications</span>
             </Link>
-            <Link href="/dashboard/import-jobs" className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50" data-testid="nav-import-jobs">
-              <Briefcase className="w-4 h-4 text-gray-600" />
-              <span>Import Jobs</span>
-            </Link>
+            
             <Link href="/dashboard/settings" className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50" data-testid="nav-settings">
               <Settings className="w-4 h-4 text-gray-600" />
               <span>Settings</span>

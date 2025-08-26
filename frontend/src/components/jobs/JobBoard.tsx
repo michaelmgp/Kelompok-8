@@ -366,7 +366,7 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
   // Convert explorer job to your job format for display
   const convertExplorerJobToJob = (explorerJob: ExplorerJob): Job => {
     return {
-      id: parseInt(explorerJob.id) || Math.random() * 10000,
+      id: parseInt(explorerJob.id) || Math.floor(Math.random() * 10000),
       title: explorerJob.title,
       company: explorerJob.company,
       description: explorerJob.description,
@@ -398,6 +398,17 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
   const closeApplyForm = () => {
     setShowApplyForm(false);
     setSelectedJob(null);
+  };
+
+  // Helper function to safely open modal with proper type handling
+  const handleJobClick = (job: Job | ExplorerJob, index: number) => {
+    const isExplorerJob = index >= staticJobs.length;
+    if (isExplorerJob) {
+      const convertedJob = convertExplorerJobToJob(job as ExplorerJob);
+      openModal(convertedJob);
+    } else {
+      openModal(job as Job);
+    }
   };
 
   return (
@@ -545,7 +556,7 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
                   isExplorerJob ? 'border-l-4 border-l-blue-500' : ''
                 }`} 
                 data-testid={`job-card-${job.id}`} 
-                onClick={() => openModal(displayJob)}
+                onClick={() => handleJobClick(job, index)}
               >
                 {/* Explorer Job Badge */}
                 {isExplorerJob && (

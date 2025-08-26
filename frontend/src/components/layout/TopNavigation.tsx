@@ -123,8 +123,8 @@ export default function TopNavigation() {
           {/* Logo */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
-              <img
-                src="/careerverse-logo.png"
+              <img 
+                src="/careerverse-logo.png" 
                 alt="CareerVerse"
                 className="w-8 h-8"
                 onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => {
@@ -162,21 +162,21 @@ export default function TopNavigation() {
                   <span>{navUsername}</span>
                 </Link>
               ) : (
-                <Button
-                  variant="outline"
+              <Button 
+                variant="outline" 
                   onClick={() => {
                     // Open the login modal only; II flow is started from the modal's II button.
                     console.debug('[Login] open modal');
                     setIsLoginOpen(!isLoginOpen);
                   }}
-                  className="flex items-center space-x-2"
-                  data-testid="button-login"
+                className="flex items-center space-x-2"
+                data-testid="button-login"
                   data-tid="login-button"
                 >
                   {/* simplified avatar to avoid typing conflicts with Radix Avatar props */}
                   <span className="inline-flex w-6 h-6 rounded-full bg-gray-200 items-center justify-center text-sm text-gray-700">{(() => { const parts = (navName || 'U').split(' ').filter(Boolean); if (parts.length <= 1) return (parts[0]||'U').slice(0,1).toUpperCase(); return (parts[0].slice(0,1)+parts[1].slice(0,1)).toUpperCase(); })()}</span>
-                  <span>Login</span>
-                </Button>
+                <span>Login</span>
+              </Button>
               )}
               
               {/* Login Dropdown */}
@@ -203,7 +203,7 @@ export default function TopNavigation() {
                         }
                       }}>
                         Login (Mainnet II)
-                      </Button>
+                    </Button>
 
                       <Button className="w-full" data-testid="button-ii-login-local" onClick={async () => {
                         try {
@@ -240,7 +240,7 @@ export default function TopNavigation() {
                         }
                       }}>
                         Login (Local II)
-                      </Button>
+                    </Button>
                     </div>
                   </div>
                 </div>

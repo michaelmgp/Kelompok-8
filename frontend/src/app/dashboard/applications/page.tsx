@@ -48,174 +48,227 @@ export default function ApplicationsPage() {
 				addLog(`🔐 Authentication status: ${auth ? 'Authenticated' : 'Not authenticated'}`);
 				setIsAuthenticated(!!auth);
 				
-				if (!auth) {
-					addLog('⚠️ User not authenticated, skipping canister fetch');
-					setLoading(false);
-					return;
-				}
+				let mapped: Application[] = [];
 				
-				const identity = authClient.getIdentity();
-				addLog(`👤 User identity: ${identity.getPrincipal().toString()}`);
-				
-				const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-				addLog(`🌐 Using host: ${host}`);
-				
-				// Create HttpAgent directly
-				const { HttpAgent } = await import('@dfinity/agent');
-				const agent = new HttpAgent({ identity, host });
-				addLog('🔧 HttpAgent created successfully');
-				
-				try { 
-					if (process.env.NODE_ENV !== 'production') {
-						addLog('🔄 Fetching root key...');
-						await agent.fetchRootKey(); 
-						addLog('✅ Root key fetched successfully');
+				if (auth) {
+					// User is authenticated, fetch from canister
+					addLog('🎯 User authenticated, fetching from canister...');
+					
+					const identity = authClient.getIdentity();
+					addLog(`👤 User identity: ${identity.getPrincipal().toString()}`);
+					
+					const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
+					addLog(`🌐 Using host: ${host}`);
+					
+					// Create HttpAgent directly
+					const { HttpAgent } = await import('@dfinity/agent');
+					const agent = new HttpAgent({ identity, host });
+					addLog('🔧 HttpAgent created successfully');
+					
+					try { 
+						if (process.env.NODE_ENV !== 'production') {
+							addLog('🔄 Fetching root key...');
+							await agent.fetchRootKey(); 
+							addLog('✅ Root key fetched successfully');
+						}
+					} catch (e) {
+						addLog(`⚠️ Root key fetch failed: ${e}`);
 					}
-				} catch (e) {
-					addLog(`⚠️ Root key fetch failed: ${e}`);
-				}
-				
-				addLog('🎯 Creating job actor...');
-				const actor = await createJobActor({ agent });
-				addLog('✅ Job actor created successfully');
-				
-				addLog('📋 Calling getMyApplications()...');
-				const recs = await actor.getMyApplications();
-				
-				// Custom serializer to handle BigInt
-				const safeRecs = JSON.parse(JSON.stringify(recs, (key, value) => {
-					if (typeof value === 'bigint') {
-						return value.toString();
-					}
-					return value;
-				}));
-				
-				addLog(`📊 Raw response from canister: ${JSON.stringify(safeRecs, null, 2)}`);
-				addLog(`📊 Number of applications: ${Array.isArray(recs) ? recs.length : 'Not an array'}`);
-				
-				// recs expected to be array of ApplicationRecord from canister
-				addLog('🔄 Starting to map application records...');
-				const mapped: Application[] = await Promise.all((recs || []).map(async (r: any, index: number) => {
-					// Safe serialize for logging
-					const safeR = JSON.parse(JSON.stringify(r, (key, value) => {
+					
+					addLog('🎯 Creating job actor...');
+					const actor = await createJobActor({ agent });
+					addLog('✅ Job actor created successfully');
+					
+					addLog('📋 Calling getMyApplications()...');
+					const recs = await actor.getMyApplications();
+					
+					// Custom serializer to handle BigInt
+					const safeRecs = JSON.parse(JSON.stringify(recs, (key, value) => {
 						if (typeof value === 'bigint') {
 							return value.toString();
 						}
 						return value;
 					}));
 					
-					addLog(`📝 Processing application ${index + 1}: ${JSON.stringify(safeR, null, 2)}`);
+					addLog(`📊 Raw response from canister: ${JSON.stringify(safeRecs, null, 2)}`);
+					addLog(`📊 Number of applications: ${Array.isArray(recs) ? recs.length : 'Not an array'}`);
 					
-					let applied = '';
-					try {
-						if (r.applied_at) {
-							// Convert BigInt to number for Date constructor
-							const timestamp = typeof r.applied_at === 'bigint' ? Number(r.applied_at) : Number(r.applied_at);
-							if (!Number.isNaN(timestamp) && timestamp > 0) {
-								// Convert nanoseconds to milliseconds if needed
-								const milliseconds = timestamp > 1e12 ? timestamp / 1e6 : timestamp;
-								const d = new Date(milliseconds);
-								applied = d.toISOString().slice(0,10);
-								addLog(`📅 Applied date: ${applied} (from timestamp: ${r.applied_at})`);
+					// recs expected to be array of ApplicationRecord from canister
+					addLog('🔄 Starting to map application records...');
+					mapped = await Promise.all((recs || []).map(async (r: any, index: number) => {
+						// Safe serialize for logging
+						const safeR = JSON.parse(JSON.stringify(r, (key, value) => {
+							if (typeof value === 'bigint') {
+								return value.toString();
 							}
-						}
-					} catch (e) {
-						addLog(`⚠️ Failed to parse applied_at: ${e}`);
-					}
-					
-					// try to fetch job details for nicer display
-					let jobTitle = 'Unknown Job';
-					let company = 'Unknown Company';
-					try {
-						addLog(`🔍 Fetching job details for job_id: ${r.job_id}`);
-						addLog(`🔍 Job ID type: ${typeof r.job_id}, value: ${r.job_id}`);
+							return value;
+						}));
 						
-						const jobRes = await actor.getJob(r.job_id || '');
-						addLog(`🔍 Raw job response: ${typeof jobRes}, value: ${jobRes}`);
+						addLog(`📝 Processing application ${index + 1}: ${JSON.stringify(safeR, null, 2)}`);
 						
-						if (jobRes && typeof jobRes === 'object') {
-							// Check if jobRes has title property
-							if ('title' in jobRes && jobRes.title) {
-								jobTitle = String(jobRes.title);
-								addLog(`✅ Job title found: ${jobTitle}`);
-							} else {
-								addLog(`⚠️ Job response missing title property: ${Object.keys(jobRes)}`);
-							}
-							
-							// Try to get company from job data or use fallback
-							if ('client' in jobRes && jobRes.client) {
-								// Extract company name from client principal or use job ID
-								const clientStr = String(jobRes.client);
-								company = clientStr.length > 10 ? `${clientStr.slice(0, 8)}...` : clientStr;
-							} else {
-								company = `Job #${r.job_id}`;
-							}
-							
-							// Safe serialize job details for logging
-							const safeJobRes = JSON.parse(JSON.stringify(jobRes, (key, value) => {
-								if (typeof value === 'bigint') {
-									return value.toString();
+						let applied = '';
+						try {
+							if (r.applied_at) {
+								// Convert BigInt to number for Date constructor
+								const timestamp = typeof r.applied_at === 'bigint' ? Number(r.applied_at) : Number(r.applied_at);
+								if (!Number.isNaN(timestamp) && timestamp > 0) {
+									// Convert nanoseconds to milliseconds if needed
+									const milliseconds = timestamp > 1e12 ? timestamp / 1e6 : timestamp;
+									const d = new Date(milliseconds);
+									applied = d.toISOString().slice(0,10);
+									addLog(`📅 Applied date: ${applied} (from timestamp: ${r.applied_at})`);
 								}
-								return value;
-							}));
-							addLog(`✅ Job details fetched: ${JSON.stringify(safeJobRes, null, 2)}`);
-						} else if (jobRes === null || jobRes === undefined) {
-							addLog(`⚠️ Job response is null/undefined for job_id: ${r.job_id}`);
-						} else {
-							addLog(`⚠️ Unexpected job response type: ${typeof jobRes}, value: ${jobRes}`);
+							}
+						} catch (e) {
+							addLog(`⚠️ Failed to parse applied_at: ${e}`);
 						}
-					} catch (e) {
-						addLog(`❌ Failed to fetch job details: ${e}`);
-						addLog(`❌ Error details: ${e instanceof Error ? e.message : String(e)}`);
-						if (e instanceof Error && e.stack) {
-							addLog(`❌ Error stack: ${e.stack}`);
+						
+						// try to fetch job details for nicer display
+						let jobTitle = 'Unknown Job';
+						let company = 'Unknown Company';
+						try {
+							addLog(`🔍 Fetching job details for job_id: ${r.job_id}`);
+							addLog(`🔍 Job ID type: ${typeof r.job_id}, value: ${r.job_id}`);
+							
+							const jobRes = await actor.getJob(r.job_id || '');
+							addLog(`🔍 Raw job response: ${typeof jobRes}, value: ${jobRes}`);
+							
+							if (jobRes && typeof jobRes === 'object') {
+								// Check if jobRes has title property
+								if ('title' in jobRes && jobRes.title) {
+									jobTitle = String(jobRes.title);
+									addLog(`✅ Job title found: ${jobTitle}`);
+								} else {
+									addLog(`⚠️ Job response missing title property: ${Object.keys(jobRes)}`);
+								}
+								
+								// Try to get company from job data or use fallback
+								if ('client' in jobRes && jobRes.client) {
+									// Extract company name from client principal or use job ID
+									const clientStr = String(jobRes.client);
+									company = clientStr.length > 10 ? `${clientStr.slice(0, 8)}...` : clientStr;
+								} else {
+									company = `Job #${r.job_id}`;
+								}
+								
+								// Safe serialize job details for logging
+								const safeJobRes = JSON.parse(JSON.stringify(jobRes, (key, value) => {
+									if (typeof value === 'bigint') {
+										return value.toString();
+									}
+									return value;
+								}));
+								addLog(`✅ Job details fetched: ${JSON.stringify(safeJobRes, null, 2)}`);
+							} else if (jobRes === null || jobRes === undefined) {
+								addLog(`⚠️ Job response is null/undefined for job_id: ${r.job_id}`);
+							} else {
+								addLog(`⚠️ Unexpected job response type: ${typeof jobRes}, value: ${jobRes}`);
+							}
+						} catch (e) {
+							addLog(`❌ Failed to fetch job details: ${e}`);
+							addLog(`❌ Error details: ${e instanceof Error ? e.message : String(e)}`);
+							if (e instanceof Error && e.stack) {
+								addLog(`❌ Error stack: ${e.stack}`);
+							}
 						}
-					}
-					
-					// Map canister status to UI status
-					let status: Application['status'] = 'Submitted';
-					if (r.status) {
-						const statusStr = String(r.status);
-						addLog(`🏷️ Raw status from canister: ${statusStr}`);
-						switch (statusStr) {
-							case 'Submitted': status = 'Submitted'; break;
-							case 'UnderReview': status = 'UnderReview'; break;
-							case 'Accepted': status = 'Accepted'; break;
-							case 'Rejected': status = 'Rejected'; break;
-							case 'Withdrawn': status = 'Withdrawn'; break;
-							default: status = 'Submitted';
+						
+						// Map canister status to UI status
+						let status: Application['status'] = 'Submitted';
+						if (r.status) {
+							const statusStr = String(r.status);
+							addLog(`🏷️ Raw status from canister: ${statusStr}`);
+							switch (statusStr) {
+								case 'Submitted': status = 'Submitted'; break;
+								case 'UnderReview': status = 'UnderReview'; break;
+								case 'Accepted': status = 'Accepted'; break;
+								case 'Rejected': status = 'Rejected'; break;
+								case 'Withdrawn': status = 'Withdrawn'; break;
+								default: status = 'Submitted';
+							}
+							addLog(`✅ Mapped status: ${status}`);
 						}
-						addLog(`✅ Mapped status: ${status}`);
-					}
-					
-					const mappedApp = {
-						id: r.id || String(Math.random()).slice(2),
-						jobTitle,
-						company,
-						appliedDate: applied,
-						status,
-						notes: r.cover_letter || '',
-						role: jobTitle, // Use job title as role
-						budget: r.proposed_budget || '',
-					} as Application;
-					
-					// Safe serialize mapped app for logging
-					const safeMappedApp = JSON.parse(JSON.stringify(mappedApp, (key, value) => {
-						if (typeof value === 'bigint') {
-							return value.toString();
-						}
-						return value;
+						
+						const mappedApp = {
+							id: r.id || String(Math.random()).slice(2),
+							jobTitle,
+							company,
+							appliedDate: applied,
+							status,
+							notes: r.cover_letter || '',
+							role: jobTitle, // Use job title as role
+							budget: r.proposed_budget || '',
+						} as Application;
+						
+						// Safe serialize mapped app for logging
+						const safeMappedApp = JSON.parse(JSON.stringify(mappedApp, (key, value) => {
+							if (typeof value === 'bigint') {
+								return value.toString();
+							}
+							return value;
+						}));
+						addLog(`✅ Mapped application: ${JSON.stringify(safeMappedApp, null, 2)}`);
+						return mappedApp;
 					}));
-					addLog(`✅ Mapped application: ${JSON.stringify(safeMappedApp, null, 2)}`);
-					return mappedApp;
-				}));
+					
+					addLog(`🎯 Mapped ${mapped.length} applications from canister`);
+				}
+				
+				// Add localStorage fallback applications
+				try {
+					addLog('🔄 Checking localStorage for fallback applications...');
+					const localStorageApps = JSON.parse(localStorage.getItem('cv:applications') || '[]');
+					addLog(`📱 Found ${localStorageApps.length} applications in localStorage`);
+					
+					const localMapped: Application[] = localStorageApps.map((app: any) => ({
+						id: app.id || `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+						jobTitle: app.jobTitle || 'Unknown Job',
+						company: app.company || 'Unknown Company',
+						appliedDate: app.submittedAt ? new Date(app.submittedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+						status: 'Submitted' as const,
+						notes: app.cover || '',
+						role: app.jobTitle || 'Unknown Job',
+						budget: app.budget || '',
+					}));
+					
+					addLog(`🎯 Mapped ${localMapped.length} applications from localStorage`);
+					
+					// Combine canister and localStorage applications
+					mapped = [...mapped, ...localMapped];
+					addLog(`🎯 Total applications: ${mapped.length} (${mapped.filter(a => a.id.startsWith('local_')).length} from localStorage, ${mapped.filter(a => !a.id.startsWith('local_')).length} from canister)`);
+					
+				} catch (e) {
+					addLog(`⚠️ Failed to read localStorage applications: ${e}`);
+				}
 				
 				if (!mounted) return;
 				addLog(`🎯 Setting ${mapped.length} applications to state`);
 				setApps(mapped);
 			} catch (e) {
-				addLog(`❌ Failed to fetch applications from canister: ${e}`);
+				addLog(`❌ Failed to fetch applications: ${e}`);
 				console.warn('Failed to fetch applications', e);
+				
+				// Even if canister fails, try to show localStorage applications
+				try {
+					addLog('🔄 Canister failed, trying localStorage fallback...');
+					const localStorageApps = JSON.parse(localStorage.getItem('cv:applications') || '[]');
+					
+					const localMapped: Application[] = localStorageApps.map((app: any) => ({
+						id: app.id || `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+						jobTitle: app.jobTitle || 'Unknown Job',
+						company: app.company || 'Unknown Company',
+						appliedDate: app.submittedAt ? new Date(app.submittedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+						status: 'Submitted' as const,
+						notes: app.cover || '',
+						role: app.jobTitle || 'Unknown Job',
+						budget: app.budget || '',
+					}));
+					
+					addLog(`🎯 Setting ${localMapped.length} localStorage applications as fallback`);
+					setApps(localMapped);
+				} catch (fallbackErr) {
+					addLog(`❌ localStorage fallback also failed: ${fallbackErr}`);
+					setApps([]);
+				}
 			} finally {
 				if (mounted) {
 					setLoading(false);
@@ -224,9 +277,6 @@ export default function ApplicationsPage() {
 			}
 		})();
 
-		// No localStorage fallback - only canister data
-		addLog('ℹ️ No localStorage fallback - only canister data is used');
-		return () => { mounted = false; };
 		return () => { mounted = false; };
 	}, []);
 
@@ -276,8 +326,8 @@ export default function ApplicationsPage() {
 											✅ Connected to Canister
 										</span>
 									) : (
-										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-											❌ Not Connected (Canister Only - No Local Storage)
+										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+											⚠️ Not Connected (Showing Local Storage Only)
 										</span>
 									)}
 									{loading && (
@@ -366,31 +416,7 @@ export default function ApplicationsPage() {
 						</div>
 					</Card>
 
-					{/* Debug Logs Card */}
-					<Card className="p-6 border border-gray-200 bg-gray-50 mt-6">
-						<div className="flex items-center justify-between mb-4">
-							<h3 className="text-lg font-semibold text-gray-800">🔍 Debug Logs</h3>
-							<Button 
-								onClick={() => setLogs([])} 
-								variant="outline" 
-								size="sm"
-								className="text-xs"
-							>
-								Clear Logs
-							</Button>
-						</div>
-						<div className="max-h-64 overflow-y-auto space-y-1">
-							{logs.length === 0 ? (
-								<p className="text-gray-500 text-sm">No logs yet. Try refreshing the page or check console for more details.</p>
-							) : (
-								logs.map((log, index) => (
-									<div key={index} className="text-xs font-mono bg-white p-2 rounded border">
-										{log}
-									</div>
-								))
-							)}
-						</div>
-					</Card>
+					
 				</div>
 			</div>
 		</div>

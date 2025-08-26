@@ -1,182 +1,448 @@
+/**
+ * Identity Contract - ICP Smart Contract for User Identity Management
+ * Handles user profiles, verification, and reputation on Internet Computer
+ */
+
+import Debug "mo:base/Debug";
 import HashMap "mo:base/HashMap";
-import Nat "mo:base/Nat";
-import Nat32 "mo:base/Nat32";
 import Text "mo:base/Text";
 import Time "mo:base/Time";
-import Iter "mo:base/Iter";
-import Error "mo:base/Error";
-import Hash "mo:base/Hash";
-
-persistent actor AgentContract {
-    // Move type declarations inside the actor body (required by current moc)
-    type AgentId = Nat;
-    type AgentRecord = {
-        id: AgentId;
-        nama: Text;
-        email: Text;
-        role: Text;
-        createdAt: Int;
-    };
-
-    var nextAgentId: Nat = 1;
-    var agentList: [(AgentId, AgentRecord)] = [];
-
-    // Map untuk menyimpan agent (transient, reconstructed on postupgrade from agentList)
-    private transient var agents: HashMap.HashMap<AgentId, AgentRecord> = 
-        HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, func(n: Nat) : Hash.Hash { Nat32.fromNat(n) });
-
-    // Hash function bisa inline seperti di atas, tidak perlu buat func natHash terpisah
-
-    system func preupgrade() {
-        agentList := Iter.toArray(agents.entries());
-    };
-
-    system func postupgrade() {
-        agents := HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, func(n: Nat) : Hash.Hash { Nat32.fromNat(n) });
-        for ((id, record) in agentList.vals()) {
-            agents.put(id, record);
-        };
-    };
-
-    public shared(_msg) func addAgent(nama: Text, email: Text, role: Text) : async AgentId {
-        if (Text.size(nama) == 0 or Text.size(email) == 0 or Text.size(role) == 0) {
-            throw Error.reject("Nama, email, dan role tidak boleh kosong");
-        };
-
-        let id = nextAgentId;
-        nextAgentId += 1;
-
-        let agent: AgentRecord = {
-            id = id;
-            nama = nama;
-            email = email;
-            role = role;
-            createdAt = Time.now();
-        };
-
-        agents.put(id, agent);
-        id
-    };
-
-    public query func getAgent(id: AgentId) : async ?AgentRecord {
-        agents.get(id)
-    };
-
-    public query func listAgents() : async [AgentRecord] {
-        Iter.toArray(agents.vals())
-    };
-
-    public shared(_msg) func updateAgent(id: AgentId, nama: Text, email: Text, role: Text) : async Bool {
-        switch (agents.get(id)) {
-            case (?existing) {
-                let updated: AgentRecord = {
-                    id = id;
-                    nama = nama;
-                    email = email;
-                    role = role;
-                    createdAt = existing.createdAt;
-                };
-                agents.put(id, updated);
-                true
-            };
-            case (_) false
-        }
-    };
-
-    public shared(_msg) func deleteAgent(id: AgentId) : async Bool {
-        switch (agents.remove(id)) {
-            case (?_) true;
-            case (_) false
-        }
-    };
-}
-import HashMap "mo:base/HashMap";
+import Array "mo:base/Array";
+import Result "mo:base/Result";
+import Principal "mo:base/Principal";
+import Float "mo:base/Float";
 import Nat "mo:base/Nat";
-import Nat32 "mo:base/Nat32";
-import Text "mo:base/Text";
-import Time "mo:base/Time";
 import Iter "mo:base/Iter";
-import Error "mo:base/Error";
-import Hash "mo:base/Hash";
 
-type AgentId = Nat;
-type AgentRecord = {
-    id: AgentId;
-    nama: Text;
+actor IdentityContract {
+
+  // ----------------------------
+  // Type Definitions
+  // ----------------------------
+
+  public type VerificationStatus = {
+    #Pending;
+    #Verified;
+    #Rejected;
+    #Expired;
+  };
+
+  public type UserProfile = {
+    principal: Principal;
+    name: Text;
     email: Text;
-    role: Text;
-    createdAt: Int;
+    bio: Text;
+    skills: [Text];
+    portfolio_url: Text;
+    location: Text;
+    experience_level: Text;
+    verification_status: VerificationStatus;
+    reputation_score: Float;
+    created_at: Int;
+    updated_at: Int;
+  };
+
+  public type VerificationRecord = {
+    id: Text;
+    user_principal: Principal;
+    verification_type: Text; // "email", "identity", "skills", "portfolio"
+    verification_data: Text;
+    status: VerificationStatus;
+    verified_at: ?Int;
+    expires_at: ?Int;
+    verifier: ?Principal;
+  };
+
+  public type ReputationEntry = {
+    id: Text;
+    user_principal: Principal;
+    job_id: Text;
+    rating: Float; // 1.0 to 5.0
+    review: Text;
+    reviewer: Principal;
+    created_at: Int;
+  };
+
+  // ----------------------------
+  // Stable State (persists across upgrades)
+  // ----------------------------
+
+  // Counters
+  stable var nextVerificationId : Nat = 1;
+  stable var nextReputationId   : Nat = 1;
+
+  // Snapshots for maps (since HashMap itself cannot be stable)
+  stable var profilesStore           : [(Principal, UserProfile)] = [];
+  stable var verificationsStore      : [(Text, VerificationRecord)] = [];
+  stable var userVerificationsStore  : [(Principal, [Text])] = [];
+  stable var reputationsStore        : [(Text, ReputationEntry)] = [];
+  stable var userReputationsStore    : [(Principal, [Text])] = [];
+
+  // ----------------------------
+  // In-memory Maps
+  // ----------------------------
+
+  var profiles = HashMap.HashMap<Principal, UserProfile>(10, Principal.equal, Principal.hash);
+  var verifications = HashMap.HashMap<Text, VerificationRecord>(50, Text.equal, Text.hash);
+  var userVerifications = HashMap.HashMap<Principal, [Text]>(10, Principal.equal, Principal.hash);
+  var reputations = HashMap.HashMap<Text, ReputationEntry>(100, Text.equal, Text.hash);
+  var userReputations = HashMap.HashMap<Principal, [Text]>(10, Principal.equal, Principal.hash);
+
+  // ----------------------------
+  // Upgrade Hooks
+  // ----------------------------
+
+  system func preupgrade() {
+    profilesStore := Iter.toArray(profiles.entries());
+    verificationsStore := Iter.toArray(verifications.entries());
+    userVerificationsStore := Iter.toArray(userVerifications.entries());
+    reputationsStore := Iter.toArray(reputations.entries());
+    userReputationsStore := Iter.toArray(userReputations.entries());
+  };
+
+  system func postupgrade() {
+    // Rehydrate all maps from their stable snapshots
+    profiles := HashMap.HashMap<Principal, UserProfile>(Nat.max(10, profilesStore.size() * 2), Principal.equal, Principal.hash);
+    for ((k, v) in profilesStore.vals()) { profiles.put(k, v) };
+
+    verifications := HashMap.HashMap<Text, VerificationRecord>(Nat.max(50, verificationsStore.size() * 2), Text.equal, Text.hash);
+    for ((k, v) in verificationsStore.vals()) { verifications.put(k, v) };
+
+    userVerifications := HashMap.HashMap<Principal, [Text]>(Nat.max(10, userVerificationsStore.size() * 2), Principal.equal, Principal.hash);
+    for ((k, v) in userVerificationsStore.vals()) { userVerifications.put(k, v) };
+
+    reputations := HashMap.HashMap<Text, ReputationEntry>(Nat.max(100, reputationsStore.size() * 2), Text.equal, Text.hash);
+    for ((k, v) in reputationsStore.vals()) { reputations.put(k, v) };
+
+    userReputations := HashMap.HashMap<Principal, [Text]>(Nat.max(10, userReputationsStore.size() * 2), Principal.equal, Principal.hash);
+    for ((k, v) in userReputationsStore.vals()) { userReputations.put(k, v) };
+  };
+
+  // ----------------------------
+  // Queries (Reads)
+  // ----------------------------
+
+  // Ambil semua user profile
+  public query func getAllUsers() : async [UserProfile] {
+    Iter.toArray(profiles.vals())
+  };
+
+   public query func getAllProfiles() : async [UserProfile] {
+    Iter.toArray(profiles.vals());
 };
+  // Get user profile
+  public query func getUserProfile(userPrincipal: Principal) : async ?UserProfile {
+    profiles.get(userPrincipal)
+  };
 
-actor AgentContract {
-    var nextAgentId: Nat = 1;
-    var agentList: [(AgentId, AgentRecord)] = [];
+  // Get verification by ID
+  public query func getVerification(verificationId: Text) : async ?VerificationRecord {
+    verifications.get(verificationId)
+  };
 
-    // Hash function custom untuk Nat (ID kecil, cukup gunakan nilai Nat itu sendiri)
-    func natHash(n: Nat) : Hash.Hash { Nat32.fromNat(n) }
+  // Get user verifications
+  public query func getUserVerifications(userPrincipal: Principal) : async [VerificationRecord] {
+    switch (userVerifications.get(userPrincipal)) {
+      case (null) { [] };
+      case (?verIds) {
+        Array.mapFilter<Text, VerificationRecord>(
+          verIds,
+          func (verId: Text) : ?VerificationRecord { verifications.get(verId) }
+        )
+      };
+    }
+  };
 
-    private var agents: HashMap.HashMap<AgentId, AgentRecord> = HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, natHash);
+  // Get user reputation entries
+  public query func getUserReputations(userPrincipal: Principal) : async [ReputationEntry] {
+    switch (userReputations.get(userPrincipal)) {
+      case (null) { [] };
+      case (?repIds) {
+        Array.mapFilter<Text, ReputationEntry>(
+          repIds,
+          func (repId: Text) : ?ReputationEntry { reputations.get(repId) }
+        )
+      };
+    }
+  };
 
-    system func preupgrade() {
-        agentList := Iter.toArray(agents.entries());
+  // Get my profile
+  public shared(msg) func getMyProfile() : async ?UserProfile {
+    profiles.get(msg.caller)
+  };
+
+  // Get pending verifications (admin/reporting)
+  public query func getPendingVerifications() : async [VerificationRecord] {
+    let allVerifications = Iter.toArray(verifications.vals());
+    Array.filter<VerificationRecord>(
+      allVerifications,
+      func (ver: VerificationRecord) : Bool { ver.status == #Pending }
+    )
+  };
+
+  // Search profiles by skills (case-insensitive ANY-match)
+  public query func searchProfilesBySkills(searchSkills: [Text]) : async [UserProfile] {
+    let allProfiles = Iter.toArray(profiles.vals());
+    Array.filter<UserProfile>(
+      allProfiles,
+      func (profile: UserProfile) : Bool {
+        Array.find<Text>(
+          searchSkills,
+          func (searchSkill: Text) : Bool {
+            Array.find<Text>(
+              profile.skills,
+              func (userSkill: Text) : Bool {
+                Text.equal(Text.toLowercase(userSkill), Text.toLowercase(searchSkill))
+              }
+            ) != null
+          }
+        ) != null
+      }
+    )
+  };
+
+  // Get contract statistics
+  public query func getContractStats() : async {
+    totalProfiles: Nat;
+    verifiedProfiles: Nat;
+    totalVerifications: Nat;
+    totalReputations: Nat;
+    averageReputation: Float;
+  } {
+    let allProfiles = Iter.toArray(profiles.vals());
+    let verifiedProfilesCount = Array.filter<UserProfile>(
+      allProfiles,
+      func (p: UserProfile) : Bool { p.verification_status == #Verified }
+    ).size();
+
+    let allReps = Iter.toArray(reputations.vals());
+    let totalRating = Array.foldLeft<ReputationEntry, Float>(
+      allReps,
+      0.0,
+      func (acc: Float, r: ReputationEntry) : Float { acc + r.rating }
+    );
+    let avgReputation = if (allReps.size() > 0) {
+      totalRating / Float.fromInt(allReps.size())
+    } else { 0.0 };
+
+    {
+      totalProfiles = profiles.size();
+      verifiedProfiles = verifiedProfilesCount;
+      totalVerifications = verifications.size();
+      totalReputations = userReputations.size(); // jumlah entri reputasi per user map
+      averageReputation = avgReputation;
+    }
+  };
+
+  // ----------------------------
+  // Updates (Writes)
+  // ----------------------------
+
+  // Create or update user profile
+  public shared(msg) func updateProfile(
+    name: Text,
+    email: Text,
+    bio: Text,
+    skills: [Text],
+    portfolioUrl: Text,
+    location: Text,
+    experienceLevel: Text
+  ) : async Result.Result<Text, Text> {
+    let userPrincipal = msg.caller;
+    let currentTime = Time.now();
+
+    let profile : UserProfile = switch (profiles.get(userPrincipal)) {
+      case (null) {
+        {
+          principal = userPrincipal;
+          name = name;
+          email = email;
+          bio = bio;
+          skills = skills;
+          portfolio_url = portfolioUrl;
+          location = location;
+          experience_level = experienceLevel;
+          verification_status = #Pending;
+          reputation_score = 0.0;
+          created_at = currentTime;
+          updated_at = currentTime;
+        }
+      };
+      case (?existing) {
+        {
+          existing with
+          name = name;
+          email = email;
+          bio = bio;
+          skills = skills;
+          portfolio_url = portfolioUrl;
+          location = location;
+          experience_level = experienceLevel;
+          updated_at = currentTime;
+        }
+      };
     };
 
-    system func postupgrade() {
-        agents := HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, natHash);
-        for ((id, record) in agentList.vals()) {
-            agents.put(id, record);
+    profiles.put(userPrincipal, profile);
+    Debug.print("Profile updated for: " # Principal.toText(userPrincipal));
+    #ok("Profile updated successfully")
+  };
+
+  // Submit verification request
+  public shared(msg) func submitVerification(
+    verificationType: Text,
+    verificationData: Text
+  ) : async Result.Result<Text, Text> {
+    let userPrincipal = msg.caller;
+    let verificationId = "ver_" # Nat.toText(nextVerificationId);
+    nextVerificationId += 1;
+
+    let verification: VerificationRecord = {
+      id = verificationId;
+      user_principal = userPrincipal;
+      verification_type = verificationType;
+      verification_data = verificationData;
+      status = #Pending;
+      verified_at = null;
+      expires_at = null;
+      verifier = null;
+    };
+
+    verifications.put(verificationId, verification);
+
+    // Add to user verifications list
+    switch (userVerifications.get(userPrincipal)) {
+      case (null) { userVerifications.put(userPrincipal, [verificationId]) };
+      case (?existing) {
+        let newer = Array.append<Text>(existing, [verificationId]);
+        userVerifications.put(userPrincipal, newer);
+      };
+    };
+
+    Debug.print("Verification submitted: " # verificationId);
+    #ok(verificationId)
+  };
+
+  // Process verification (admin function – add role check in production)
+  public shared(msg) func processVerification(
+    verificationId: Text,
+    approved: Bool,
+    expiresAt: ?Int
+  ) : async Result.Result<Text, Text> {
+    switch (verifications.get(verificationId)) {
+      case (null) { #err("Verification not found") };
+      case (?verification) {
+        let newStatus = if (approved) { #Verified } else { #Rejected };
+        let verifiedAt = if (approved) { ?Time.now() } else { null };
+
+        let updatedVerification: VerificationRecord = {
+          verification with
+          status = newStatus;
+          verified_at = verifiedAt;
+          expires_at = expiresAt;
+          verifier = ?msg.caller;
         };
-    };
+        verifications.put(verificationId, updatedVerification);
 
-    public shared(msg) func addAgent(nama: Text, email: Text, role: Text) : async AgentId {
-        if (Text.size(nama) == 0 or Text.size(email) == 0 or Text.size(role) == 0) {
-            throw Error.reject("Nama, email, dan role tidak boleh kosong");
-        };
-
-        let id = nextAgentId;
-        nextAgentId += 1;
-
-        let agent: AgentRecord = {
-            id = id;
-            nama = nama;
-            email = email;
-            role = role;
-            createdAt = Time.now();
-        };
-
-        agents.put(id, agent);
-        id
-    };
-
-    public query func getAgent(id: AgentId) : async ?AgentRecord {
-        agents.get(id)
-    };
-
-    public query func listAgents() : async [AgentRecord] {
-        Iter.toArray(agents.vals())
-    };
-
-    public shared(msg) func updateAgent(id: AgentId, nama: Text, email: Text, role: Text) : async Bool {
-        switch (agents.get(id)) {
-            case (?existing) {
-                let updated: AgentRecord = {
-                    id = id;
-                    nama = nama;
-                    email = email;
-                    role = role;
-                    createdAt = existing.createdAt;
-                };
-                agents.put(id, updated);
-                true
+        // If identity verification approved, mark profile as Verified
+        if (verification.verification_type == "identity" and approved) {
+          switch (profiles.get(verification.user_principal)) {
+            case (null) {};
+            case (?profile) {
+              let updatedProfile: UserProfile = {
+                profile with
+                verification_status = #Verified;
+                updated_at = Time.now();
+              };
+              profiles.put(verification.user_principal, updatedProfile);
             };
-            case (_) false
-        }
+          };
+        };
+
+        Debug.print("Verification processed: " # verificationId);
+        #ok("Verification processed successfully")
+      };
+    }
+  };
+
+  // Add reputation/review
+  public shared(msg) func addReputation(
+    userPrincipal: Principal,
+    jobId: Text,
+    rating: Float,
+    review: Text
+  ) : async Result.Result<Text, Text> {
+    if (rating < 1.0 or rating > 5.0) {
+      return #err("Rating must be between 1.0 and 5.0");
     };
 
-    public shared(msg) func deleteAgent(id: AgentId) : async Bool {
-        switch (agents.remove(id)) {
-            case (?_) true;
-            case (_) false
-        }
+    let reputationId = "rep_" # Nat.toText(nextReputationId);
+    nextReputationId += 1;
+
+    let reputationEntry: ReputationEntry = {
+      id = reputationId;
+      user_principal = userPrincipal;
+      job_id = jobId;
+      rating = rating;
+      review = review;
+      reviewer = msg.caller;
+      created_at = Time.now();
     };
+
+    reputations.put(reputationId, reputationEntry);
+
+    // Add to user reputation list
+    switch (userReputations.get(userPrincipal)) {
+      case (null) { userReputations.put(userPrincipal, [reputationId]) };
+      case (?existing) {
+        let newer = Array.append<Text>(existing, [reputationId]);
+        userReputations.put(userPrincipal, newer);
+      };
+    };
+
+    // Update user's reputation score
+    await updateUserReputationScore(userPrincipal);
+
+    Debug.print("Reputation added: " # reputationId);
+    #ok(reputationId)
+  };
+
+  // ----------------------------
+  // Internal helpers
+  // ----------------------------
+
+  private func updateUserReputationScore(userPrincipal: Principal) : async () {
+    switch (userReputations.get(userPrincipal)) {
+      case (null) {};
+      case (?repIds) {
+        var totalRating : Float = 0.0;
+        var ratingCount : Nat = 0;
+
+        for (repId in repIds.vals()) {
+          switch (reputations.get(repId)) {
+            case (null) {};
+            case (?rep) {
+              totalRating += rep.rating;
+              ratingCount += 1;
+            };
+          };
+        };
+
+        if (ratingCount > 0) {
+          let averageRating = totalRating / Float.fromInt(ratingCount);
+          switch (profiles.get(userPrincipal)) {
+            case (null) {};
+            case (?profile) {
+              let updatedProfile: UserProfile = {
+                profile with
+                reputation_score = averageRating;
+                updated_at = Time.now();
+              };
+              profiles.put(userPrincipal, updatedProfile);
+            };
+          };
+        };
+      };
+    };
+  };
 }
