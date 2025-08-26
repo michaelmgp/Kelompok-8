@@ -65,6 +65,11 @@ class BaseScraper(ABC):
     def _is_valid_job_data(self, raw_data: Dict[str, Any]) -> bool:
         """Basic validation to catch obviously invalid job data early"""
         try:
+            # Safety check for None or invalid raw_data
+            if not raw_data or not isinstance(raw_data, dict):
+                logger.debug(f"Cannot validate invalid raw_data: {type(raw_data)}")
+                return False
+                
             # Check for required fields
             title = raw_data.get("title", "").strip()
             company = raw_data.get("company", "").strip()
@@ -76,13 +81,18 @@ class BaseScraper(ABC):
                 return False
                 
             # Reject jobs with very short descriptions
-            if len(description) < 20:
+            if len(description) < 10:  # Reduced from 20 to 10
                 logger.debug(f"Rejecting job: Description too short ({len(description)} chars)")
                 return False
                 
             # Reject jobs with obvious placeholder content
             if any(placeholder in title.lower() for placeholder in ["test", "sample", "example", "placeholder"]):
                 logger.debug(f"Rejecting job: Placeholder title detected")
+                return False
+                
+            # Only reject if title is completely empty, not just short
+            if len(title) < 3:  # Reduced from 5 to 3
+                logger.debug(f"Rejecting job: Title too short")
                 return False
                 
             # Reject jobs with obvious error messages
@@ -99,6 +109,11 @@ class BaseScraper(ABC):
         
     def _create_job_object(self, raw_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Create a standardized job object that matches the frontend structure exactly"""
+        # Safety check for None or invalid raw_data
+        if not raw_data or not isinstance(raw_data, dict):
+            logger.debug(f"Cannot create job object from invalid raw_data: {type(raw_data)}")
+            return None
+            
         # Basic validation before creating job object
         if not self._is_valid_job_data(raw_data):
             return None

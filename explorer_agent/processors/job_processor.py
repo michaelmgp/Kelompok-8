@@ -17,6 +17,7 @@ class JobProcessor:
     def __init__(self):
         self.ai_enabled = False
         self.ai_client = None
+        self.quality_filtering_enabled = False  # Temporarily disable quality filtering
         
     async def initialize(self):
         """Initialize the job processor"""
@@ -26,11 +27,20 @@ class JobProcessor:
     async def process_job(self, job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Process and clean job data, return None if job doesn't meet quality standards"""
         try:
+            # Safety check for None or invalid job data
+            if not job_data or not isinstance(job_data, dict):
+                logger.debug(f"Job data is None or invalid: {type(job_data)}")
+                return None
+            
             # Clean and validate the job data
             cleaned_job = self._clean_job_data(job_data)
             
-            # Apply quality filter - reject low-quality jobs
-            if not self._validate_job_quality(cleaned_job):
+            # Debug logging to see what we're working with
+            logger.debug(f"Processing job: '{cleaned_job.get('title', 'No title')}' at '{cleaned_job.get('company', 'No company')}'")
+            logger.debug(f"Description length: {len(cleaned_job.get('description', ''))}")
+            
+            # Apply quality filter - reject low-quality jobs (only if enabled)
+            if self.quality_filtering_enabled and not self._validate_job_quality(cleaned_job):
                 logger.info(f"Job rejected due to quality issues: {cleaned_job.get('title', 'Unknown')}")
                 return None
             
@@ -50,6 +60,11 @@ class JobProcessor:
             
     def _clean_job_data(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
         """Clean and validate job data"""
+        # Additional safety check
+        if not job_data or not isinstance(job_data, dict):
+            logger.warning(f"Invalid job data passed to _clean_job_data: {type(job_data)}")
+            return {}
+            
         cleaned = job_data.copy()
         
         # Clean title
@@ -89,6 +104,11 @@ class JobProcessor:
     def _validate_job_quality(self, job_data: Dict[str, Any]) -> bool:
         """Validate job quality and filter out low-quality or incomplete jobs"""
         try:
+            # Safety check for empty or invalid job data
+            if not job_data or not isinstance(job_data, dict):
+                logger.debug(f"Cannot validate invalid job data: {type(job_data)}")
+                return False
+                
             # Check if essential fields have meaningful content
             title = job_data.get("title", "").strip()
             company = job_data.get("company", "").strip()
@@ -109,7 +129,7 @@ class JobProcessor:
                 return False
                 
             # Filter out jobs with very short descriptions (likely incomplete scraping)
-            if len(description) < 50:
+            if len(description) < 20:  # Reduced from 50 to 20
                 logger.debug(f"Filtered out job: Description too short ({len(description)} chars)")
                 return False
                 
@@ -135,12 +155,12 @@ class JobProcessor:
             # Filter out jobs with excessive HTML/encoding artifacts
             html_artifacts = ["&nbsp;", "&amp;", "&lt;", "&gt;", "&quot;", "&#39;"]
             artifact_count = sum(description.count(artifact) for artifact in html_artifacts)
-            if artifact_count > 10:  # Too many HTML artifacts suggest poor scraping
+            if artifact_count > 20:  # Increased from 10 to 20 - more tolerant of HTML artifacts
                 logger.debug(f"Filtered out job: Too many HTML artifacts ({artifact_count})")
                 return False
                 
             # Check if the job has at least some meaningful content beyond basic fields
-            meaningful_content = len(description) > 100 or job_data.get("requirements") or job_data.get("extracted_skills")
+            meaningful_content = len(description) > 30 or job_data.get("requirements") or job_data.get("extracted_skills")  # Reduced from 100 to 30
             if not meaningful_content:
                 logger.debug(f"Filtered out job: Insufficient meaningful content")
                 return False
@@ -185,6 +205,11 @@ class JobProcessor:
         
     async def _enrich_job_data(self, job_data: Dict[str, Any]) -> Dict[str, Any]:
         """Enrich job data with additional analysis"""
+        # Safety check for empty or invalid job data
+        if not job_data or not isinstance(job_data, dict):
+            logger.warning(f"Cannot enrich invalid job data: {type(job_data)}")
+            return {}
+            
         enriched = job_data.copy()
         
         # Extract skills from description

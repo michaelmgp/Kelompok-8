@@ -125,7 +125,14 @@ class ExplorerAgent:
             
             # Start scraping with streaming
             async for job_data in scraper.scrape_jobs(search_params):
+                # Skip None jobs (already filtered by scraper)
+                if job_data is None:
+                    filtered_jobs += 1
+                    logger.debug(f"Job already filtered out by {scraper.name}")
+                    continue
+                    
                 total_jobs += 1
+                logger.debug(f"Processing job from {scraper.name}: {job_data.get('title', 'No title')}")
                 
                 # Process the job data
                 processed_job = await self.processor.process_job(job_data)
@@ -133,6 +140,7 @@ class ExplorerAgent:
                 # Only stream jobs that passed quality validation
                 if processed_job is not None:
                     valid_jobs += 1
+                    logger.debug(f"Job passed processing: {processed_job.get('title', 'No title')}")
                     # Stream the processed job
                     await websocket.send_json({
                         "type": "job_data",

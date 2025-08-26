@@ -429,13 +429,16 @@ export default function FloatingAIAssistant() {
 
             {/* Quick Actions */}
             <div className="px-3 pb-2">
+              <div className="text-xs text-gray-600 mb-2">
+                💡 Quick Actions:
+              </div>
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() => handleQuickAction("Find me job opportunities in blockchain and AI")}
                   className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
                   disabled={!isConnected || isConnectionChecking}
                 >
-                  🔍 Find Jobs
+                  🔍 Find Jobs (Auto-start)
                 </button>
                 <button
                   onClick={() => handleQuickAction("Help me optimize my profile")}

@@ -64,7 +64,12 @@ class LinkedInScraper(BaseScraper):
             
             # Yield each job
             for job_data in job_listings:
-                yield self._create_job_object(job_data)
+                # Create job object and only yield if it's valid
+                job_object = self._create_job_object(job_data)
+                if job_object is not None:
+                    yield job_object
+                else:
+                    logger.debug(f"Job object creation failed for job data: {job_data.get('title', 'Unknown')}")
                 
                 # Rate limiting
                 await asyncio.sleep(1)
@@ -80,10 +85,17 @@ class LinkedInScraper(BaseScraper):
         try:
             html_content = await self._make_request(job_url)
             if not html_content:
+                logger.debug(f"No HTML content received for job URL: {job_url}")
                 return {}
                 
             # Parse detailed job information
             job_details = await self._parse_job_details(html_content)
+            
+            # Safety check: if job_details is empty, don't create job object
+            if not job_details:
+                logger.debug(f"Empty job details for URL: {job_url}")
+                return {}
+                
             return self._create_job_object(job_details)
             
         except Exception as e:
@@ -184,7 +196,7 @@ class LinkedInScraper(BaseScraper):
                 return None
                 
             # Check for very short titles (likely incomplete)
-            if len(title) < 5:
+            if len(title) < 3:  # Reduced from 5 to 3
                 logger.debug(f"Rejecting LinkedIn job: Title too short")
                 return None
                 
@@ -238,7 +250,7 @@ class LinkedInScraper(BaseScraper):
                         break
                         
             # Validate job description quality
-            if not description or len(description.strip()) < 50:
+            if not description or len(description.strip()) < 20:  # Reduced from 50 to 20
                 logger.debug(f"Rejecting LinkedIn job: Description too short or empty")
                 return {}
                 

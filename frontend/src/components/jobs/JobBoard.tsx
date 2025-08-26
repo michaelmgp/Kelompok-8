@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface Job {
   id: number;
@@ -74,6 +74,7 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
     filteredJobs: number;
     qualityRate: string;
   } | null>(null);
+  const [hasChatbotRequirements, setHasChatbotRequirements] = useState(false);
   
   const websocketRef = useRef<WebSocket | null>(null);
 
@@ -215,9 +216,36 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
       industry: 'Technology'
     };
   };
+  
+  // Check if we should auto-start job search when component mounts
+  useEffect(() => {
+    // Only run on client side
+    if (typeof window === 'undefined') return;
+    
+    const hasRequirements = localStorage.getItem('chatbotJobRequirements') !== null || chatContext;
+    setHasChatbotRequirements(!!hasRequirements);
+    
+    if (hasRequirements && !isSearching) {
+      // Small delay to ensure component is fully mounted
+      const timer = setTimeout(() => {
+        console.log('Auto-starting job search from chatbot...');
+        startJobSearch();
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [chatContext]); // Only run when chatContext changes
+  
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      // Reset state when component unmounts
+      setHasChatbotRequirements(false);
+    };
+  }, []);
 
   // Start job search with explorer agent
-  const startJobSearch = async () => {
+  const startJobSearch = useCallback(async () => {
     setIsSearching(true);
     setSearchStatus('Connecting to Explorer Agent...');
     setExplorerJobs([]);
@@ -313,7 +341,7 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
       setSearchStatus('Failed to start search. Please try again.');
       setIsSearching(false);
     }
-  };
+  }, []); // Empty dependency array since this function doesn't depend on any props/state
 
   // Stop job search
   const stopJobSearch = () => {
@@ -394,6 +422,15 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
               <p className="text-blue-700 text-sm">
                 Use our Explorer Agent to find real-time job listings from LinkedIn, Indeed, Glassdoor, and more
               </p>
+              
+              {/* Auto-start notification */}
+              {hasChatbotRequirements && !isSearching && (
+                <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-green-700 text-sm font-medium">
+                    🎯 Job search will start automatically based on your chatbot conversation!
+                  </p>
+                </div>
+              )}
               {searchStatus && (
                 <p className="text-blue-600 text-sm mt-2 font-medium">
                   {searchStatus}
@@ -440,6 +477,13 @@ export default function JobBoard({ chatContext }: JobBoardProps) {
                 >
                   ⏹️ Stop Search
                 </button>
+              )}
+              
+              {/* Show auto-start indicator when coming from chatbot */}
+              {hasChatbotRequirements && !isSearching && (
+                <div className="text-blue-600 text-sm font-medium flex items-center">
+                  🚀 Auto-starting from chatbot...
+                </div>
               )}
               {explorerJobs.length > 0 && (
                 <button
