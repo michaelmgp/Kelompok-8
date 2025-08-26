@@ -7,10 +7,8 @@ import Iter "mo:base/Iter";
 import Error "mo:base/Error";
 import Hash "mo:base/Hash";
 
-actor AgentContract {
-    // Types moved into the actor body to satisfy the Motoko compiler's
-    // limitation requiring an actor/class to be the only non-import top-level
-    // declaration in the program.
+persistent actor AgentContract {
+    // Move type declarations inside the actor body (required by current moc)
     type AgentId = Nat;
     type AgentRecord = {
         id: AgentId;
@@ -19,26 +17,28 @@ actor AgentContract {
         role: Text;
         createdAt: Int;
     };
+
     var nextAgentId: Nat = 1;
     var agentList: [(AgentId, AgentRecord)] = [];
 
-    // Hash function custom untuk Nat (ID kecil, cukup gunakan nilai Nat itu sendiri)
-    func natHash(n: Nat) : Hash.Hash { Nat32.fromNat(n) };
+    // Map untuk menyimpan agent (transient, reconstructed on postupgrade from agentList)
+    private transient var agents: HashMap.HashMap<AgentId, AgentRecord> = 
+        HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, func(n: Nat) : Hash.Hash { Nat32.fromNat(n) });
 
-    private var agents: HashMap.HashMap<AgentId, AgentRecord> = HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, natHash);
+    // Hash function bisa inline seperti di atas, tidak perlu buat func natHash terpisah
 
     system func preupgrade() {
         agentList := Iter.toArray(agents.entries());
     };
 
     system func postupgrade() {
-        agents := HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, natHash);
+        agents := HashMap.HashMap<AgentId, AgentRecord>(100, Nat.equal, func(n: Nat) : Hash.Hash { Nat32.fromNat(n) });
         for ((id, record) in agentList.vals()) {
             agents.put(id, record);
         };
     };
 
-    public shared(msg) func addAgent(nama: Text, email: Text, role: Text) : async AgentId {
+    public shared(_msg) func addAgent(nama: Text, email: Text, role: Text) : async AgentId {
         if (Text.size(nama) == 0 or Text.size(email) == 0 or Text.size(role) == 0) {
             throw Error.reject("Nama, email, dan role tidak boleh kosong");
         };
@@ -66,7 +66,7 @@ actor AgentContract {
         Iter.toArray(agents.vals())
     };
 
-    public shared(msg) func updateAgent(id: AgentId, nama: Text, email: Text, role: Text) : async Bool {
+    public shared(_msg) func updateAgent(id: AgentId, nama: Text, email: Text, role: Text) : async Bool {
         switch (agents.get(id)) {
             case (?existing) {
                 let updated: AgentRecord = {
@@ -83,7 +83,7 @@ actor AgentContract {
         }
     };
 
-    public shared(msg) func deleteAgent(id: AgentId) : async Bool {
+    public shared(_msg) func deleteAgent(id: AgentId) : async Bool {
         switch (agents.remove(id)) {
             case (?_) true;
             case (_) false

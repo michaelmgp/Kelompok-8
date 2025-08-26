@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
-import { createIdentityActor, updateProfile, setPasswordOnCanister, flushPendingApplications, createHttpAgent } from '@/lib/icp';
+import { createIdentityActor, updateProfile, setPasswordOnCanister, flushPendingApplications } from '@/lib/icp';
 
 export default function IiCallbackPage() {
   const router = useRouter();
@@ -26,10 +26,7 @@ export default function IiCallbackPage() {
 
         const identity = authClient.getIdentity();
         const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-        
-        // Use utility function to create HttpAgent with proper configuration
-        const agent = createHttpAgent({ identity, host });
-        
+  const agent = new HttpAgent({ identity, host, maxTimeToLive: Number(process.env.NEXT_PUBLIC_INGRESS_TTL_MS || '600000') } as any);
         try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) { console.warn('fetchRootKey failed', e); }
 
         // Create actor using authenticated identity
@@ -89,6 +86,19 @@ export default function IiCallbackPage() {
           const anyOk = Array.isArray(flushResults) && flushResults.some((r: any) => r && r.ok);
           if (anyOk) {
             console.debug('ii-callback: flushed pending applications', flushResults);
+            // If this page was opened in a popup, notify the opener and close.
+            try {
+              const principalText = identity.getPrincipal().toText();
+              if (typeof window !== 'undefined' && (window as any).opener && (window as any).opener !== window) {
+                try {
+                  (window as any).opener.postMessage({ type: 'ii-auth-success', principal: principalText }, window.location.origin || '*');
+                } catch (pmErr) {
+                  console.debug('ii-callback: postMessage to opener failed', pmErr);
+                }
+                try { window.close(); } catch (e) { /* ignore if not allowed */ }
+                return;
+              }
+            } catch (e) { /* ignore */ }
             router.replace('/dashboard/applications');
             return;
           }
@@ -96,7 +106,21 @@ export default function IiCallbackPage() {
           console.debug('ii-callback: flushPendingApplications failed', e);
         }
 
-        // Redirect to dashboard after finalization (default)
+        // If opened in a popup, notify opener and close; otherwise navigate in the current tab.
+        try {
+          const principalText = identity.getPrincipal().toText();
+          if (typeof window !== 'undefined' && (window as any).opener && (window as any).opener !== window) {
+            try {
+              (window as any).opener.postMessage({ type: 'ii-auth-success', principal: principalText }, window.location.origin || '*');
+            } catch (pmErr) {
+              console.debug('ii-callback: postMessage to opener failed', pmErr);
+            }
+            try { window.close(); } catch (e) { /* ignore if not allowed */ }
+            return;
+          }
+        } catch (e) { /* ignore */ }
+
+        // Redirect to dashboard after finalization (default for non-popup)
         router.replace('/dashboard');
       } catch (err) {
         console.error('ii-callback error', err);

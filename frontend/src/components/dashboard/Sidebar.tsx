@@ -3,7 +3,7 @@ import ProfileSettings from './ProfileSettings';
 import Link from 'next/link';
 import { Home, Briefcase, User, Settings, LogOut } from 'lucide-react';
 import { AuthClient } from '@dfinity/auth-client';
-import { createIdentityActor, createHttpAgent } from '@/lib/icp';
+import { createIdentityActor } from '@/lib/icp';
 
 export default function Sidebar() {
   const [editing, setEditing] = useState(false);
@@ -22,16 +22,22 @@ export default function Sidebar() {
           try {
             const identity = authClient.getIdentity();
             const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-            const agent = createHttpAgent({ identity, host });
+            // Create HttpAgent directly
+            const { HttpAgent } = await import('@dfinity/agent');
+            const agent = new HttpAgent({ identity, host });
             try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
             
             const actor = await createIdentityActor({ agent });
-            const profile = await actor.getMyProfile();
+            
+            // Get profile by principal from the identity
+            const principal = identity.getPrincipal().toString();
+            const allProfiles = await actor.getAllProfiles();
+            const profile = allProfiles.find((p: any) => p.principal.toString() === principal);
             
             if (profile) {
               setUserName(profile.name || 'User Name');
               setUserEmail(profile.email || '@username');
-              setUserRole(profile.role || profile.experience_level || '');
+              setUserRole(profile.experience_level || '');
               
               // Update localStorage for faster access
               try { localStorage.setItem('cv:profile', JSON.stringify({
@@ -41,8 +47,8 @@ export default function Sidebar() {
                 skills: profile.skills,
                 portfolioUrl: profile.portfolio_url,
                 location: profile.location,
-                experienceLevel: profile.role || profile.experience_level,
-                role: profile.role || ''
+                experienceLevel: profile.experience_level,
+                role: profile.experience_level || ''
               })); } catch (e) {}
               return;
             }
@@ -98,7 +104,7 @@ export default function Sidebar() {
             <p className="text-xs text-gray-500">{userEmail}</p>
             {userRole ? <div className="text-xs text-gray-600">{userRole}</div> : null}
             <div className="mt-1">
-              {localStorage.getItem('cv:isAuthenticated') ? (
+              {typeof window !== 'undefined' && localStorage.getItem('cv:isAuthenticated') ? (
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                   ✅ Connected
                 </span>
@@ -128,6 +134,10 @@ export default function Sidebar() {
             <Link href="/dashboard/applications" className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50" data-testid="nav-applications">
               <Briefcase className="w-4 h-4 text-gray-600" />
               <span>My Applications</span>
+            </Link>
+            <Link href="/dashboard/import-jobs" className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50" data-testid="nav-import-jobs">
+              <Briefcase className="w-4 h-4 text-gray-600" />
+              <span>Import Jobs</span>
             </Link>
             <Link href="/dashboard/settings" className="flex items-center gap-2 px-3 py-2 rounded hover:bg-gray-50" data-testid="nav-settings">
               <Settings className="w-4 h-4 text-gray-600" />

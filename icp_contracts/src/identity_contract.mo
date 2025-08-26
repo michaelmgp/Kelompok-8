@@ -122,14 +122,10 @@ actor IdentityContract {
   // Queries (Reads)
   // ----------------------------
 
-  // Ambil semua user profile
-  public query func getAllUsers() : async [UserProfile] {
+  // Get all user profiles
+  public query func getAllProfiles() : async [UserProfile] {
     Iter.toArray(profiles.vals())
   };
-
-   public query func getAllProfiles() : async [UserProfile] {
-    Iter.toArray(profiles.vals());
-};
   // Get user profile
   public query func getUserProfile(userPrincipal: Principal) : async ?UserProfile {
     profiles.get(userPrincipal)

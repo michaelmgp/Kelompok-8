@@ -16,7 +16,7 @@ type Application = {
 	budget?: string;
 };
 
-import { createJobActor, getPendingApplications, flushPendingApplications, createHttpAgent } from '@/lib/icp';
+import { createJobActor } from '@/lib/icp';
 import { AuthClient } from '@dfinity/auth-client';
 
 
@@ -25,52 +25,158 @@ export default function ApplicationsPage() {
 	const [filter, setFilter] = useState<'All'|'Submitted'|'UnderReview'|'Accepted'|'Rejected'|'Withdrawn'>('All');
 	const [search, setSearch] = useState('');
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
+	const [logs, setLogs] = useState<string[]>([]);
+	const [loading, setLoading] = useState(false);
+
+	const addLog = (message: string) => {
+		const timestamp = new Date().toLocaleTimeString();
+		setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+		console.log(`[Applications] ${message}`);
+	};
 
 	useEffect(() => {
 		let mounted = true;
 		(async () => {
 			try {
+				addLog('🔄 Starting to fetch applications...');
+				setLoading(true);
+				
 				const authClient = await AuthClient.create();
+				addLog('✅ AuthClient created successfully');
+				
 				const auth = await authClient.isAuthenticated();
+				addLog(`🔐 Authentication status: ${auth ? 'Authenticated' : 'Not authenticated'}`);
 				setIsAuthenticated(!!auth);
-				if (!auth) return;
+				
+				if (!auth) {
+					addLog('⚠️ User not authenticated, skipping canister fetch');
+					setLoading(false);
+					return;
+				}
+				
 				const identity = authClient.getIdentity();
+				addLog(`👤 User identity: ${identity.getPrincipal().toString()}`);
+				
 				const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-				const agent = createHttpAgent({ identity, host });
-				try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
+				addLog(`🌐 Using host: ${host}`);
+				
+				// Create HttpAgent directly
+				const { HttpAgent } = await import('@dfinity/agent');
+				const agent = new HttpAgent({ identity, host });
+				addLog('🔧 HttpAgent created successfully');
+				
+				try { 
+					if (process.env.NODE_ENV !== 'production') {
+						addLog('🔄 Fetching root key...');
+						await agent.fetchRootKey(); 
+						addLog('✅ Root key fetched successfully');
+					}
+				} catch (e) {
+					addLog(`⚠️ Root key fetch failed: ${e}`);
+				}
+				
+				addLog('🎯 Creating job actor...');
 				const actor = await createJobActor({ agent });
+				addLog('✅ Job actor created successfully');
+				
+				addLog('📋 Calling getMyApplications()...');
 				const recs = await actor.getMyApplications();
+				
+				// Custom serializer to handle BigInt
+				const safeRecs = JSON.parse(JSON.stringify(recs, (key, value) => {
+					if (typeof value === 'bigint') {
+						return value.toString();
+					}
+					return value;
+				}));
+				
+				addLog(`📊 Raw response from canister: ${JSON.stringify(safeRecs, null, 2)}`);
+				addLog(`📊 Number of applications: ${Array.isArray(recs) ? recs.length : 'Not an array'}`);
+				
 				// recs expected to be array of ApplicationRecord from canister
-				const mapped: Application[] = await Promise.all((recs || []).map(async (r: any) => {
+				addLog('🔄 Starting to map application records...');
+				const mapped: Application[] = await Promise.all((recs || []).map(async (r: any, index: number) => {
+					// Safe serialize for logging
+					const safeR = JSON.parse(JSON.stringify(r, (key, value) => {
+						if (typeof value === 'bigint') {
+							return value.toString();
+						}
+						return value;
+					}));
+					
+					addLog(`📝 Processing application ${index + 1}: ${JSON.stringify(safeR, null, 2)}`);
+					
 					let applied = '';
 					try {
 						if (r.applied_at) {
-							const n = Number(r.applied_at);
-							if (!Number.isNaN(n) && n > 0) {
-								const d = new Date(n);
+							// Convert BigInt to number for Date constructor
+							const timestamp = typeof r.applied_at === 'bigint' ? Number(r.applied_at) : Number(r.applied_at);
+							if (!Number.isNaN(timestamp) && timestamp > 0) {
+								// Convert nanoseconds to milliseconds if needed
+								const milliseconds = timestamp > 1e12 ? timestamp / 1e6 : timestamp;
+								const d = new Date(milliseconds);
 								applied = d.toISOString().slice(0,10);
+								addLog(`📅 Applied date: ${applied} (from timestamp: ${r.applied_at})`);
 							}
 						}
-					} catch (e) {}
+					} catch (e) {
+						addLog(`⚠️ Failed to parse applied_at: ${e}`);
+					}
 					
 					// try to fetch job details for nicer display
 					let jobTitle = 'Unknown Job';
 					let company = 'Unknown Company';
 					try {
+						addLog(`🔍 Fetching job details for job_id: ${r.job_id}`);
+						addLog(`🔍 Job ID type: ${typeof r.job_id}, value: ${r.job_id}`);
+						
 						const jobRes = await actor.getJob(r.job_id || '');
-						if (jobRes) {
-							jobTitle = jobRes.title || 'Unknown Job';
-							// For now, use job ID as company since client is Principal
-							company = `Job #${r.job_id}`;
+						addLog(`🔍 Raw job response: ${typeof jobRes}, value: ${jobRes}`);
+						
+						if (jobRes && typeof jobRes === 'object') {
+							// Check if jobRes has title property
+							if ('title' in jobRes && jobRes.title) {
+								jobTitle = String(jobRes.title);
+								addLog(`✅ Job title found: ${jobTitle}`);
+							} else {
+								addLog(`⚠️ Job response missing title property: ${Object.keys(jobRes)}`);
+							}
+							
+							// Try to get company from job data or use fallback
+							if ('client' in jobRes && jobRes.client) {
+								// Extract company name from client principal or use job ID
+								const clientStr = String(jobRes.client);
+								company = clientStr.length > 10 ? `${clientStr.slice(0, 8)}...` : clientStr;
+							} else {
+								company = `Job #${r.job_id}`;
+							}
+							
+							// Safe serialize job details for logging
+							const safeJobRes = JSON.parse(JSON.stringify(jobRes, (key, value) => {
+								if (typeof value === 'bigint') {
+									return value.toString();
+								}
+								return value;
+							}));
+							addLog(`✅ Job details fetched: ${JSON.stringify(safeJobRes, null, 2)}`);
+						} else if (jobRes === null || jobRes === undefined) {
+							addLog(`⚠️ Job response is null/undefined for job_id: ${r.job_id}`);
+						} else {
+							addLog(`⚠️ Unexpected job response type: ${typeof jobRes}, value: ${jobRes}`);
 						}
 					} catch (e) {
-						console.debug('Failed to fetch job details:', e);
+						addLog(`❌ Failed to fetch job details: ${e}`);
+						addLog(`❌ Error details: ${e instanceof Error ? e.message : String(e)}`);
+						if (e instanceof Error && e.stack) {
+							addLog(`❌ Error stack: ${e.stack}`);
+						}
 					}
 					
 					// Map canister status to UI status
 					let status: Application['status'] = 'Submitted';
 					if (r.status) {
 						const statusStr = String(r.status);
+						addLog(`🏷️ Raw status from canister: ${statusStr}`);
 						switch (statusStr) {
 							case 'Submitted': status = 'Submitted'; break;
 							case 'UnderReview': status = 'UnderReview'; break;
@@ -79,9 +185,10 @@ export default function ApplicationsPage() {
 							case 'Withdrawn': status = 'Withdrawn'; break;
 							default: status = 'Submitted';
 						}
+						addLog(`✅ Mapped status: ${status}`);
 					}
 					
-					return {
+					const mappedApp = {
 						id: r.id || String(Math.random()).slice(2),
 						jobTitle,
 						company,
@@ -91,32 +198,34 @@ export default function ApplicationsPage() {
 						role: jobTitle, // Use job title as role
 						budget: r.proposed_budget || '',
 					} as Application;
+					
+					// Safe serialize mapped app for logging
+					const safeMappedApp = JSON.parse(JSON.stringify(mappedApp, (key, value) => {
+						if (typeof value === 'bigint') {
+							return value.toString();
+						}
+						return value;
+					}));
+					addLog(`✅ Mapped application: ${JSON.stringify(safeMappedApp, null, 2)}`);
+					return mappedApp;
 				}));
+				
 				if (!mounted) return;
+				addLog(`🎯 Setting ${mapped.length} applications to state`);
 				setApps(mapped);
 			} catch (e) {
+				addLog(`❌ Failed to fetch applications from canister: ${e}`);
 				console.warn('Failed to fetch applications', e);
+			} finally {
+				if (mounted) {
+					setLoading(false);
+					addLog('🏁 Finished fetching applications');
+				}
 			}
 		})();
 
-		// If not authenticated, load any locally saved pending applications so users
-		// can see what will be submitted after they sign in.
-		try {
-			const pending = getPendingApplications();
-			if (pending && pending.length > 0 && mounted) {
-				// Map minimal pending structure into the UI model
-				const mapped = pending.map((p: any) => ({
-					id: p.jobId + '::pending::' + (p.createdAt || ''),
-					jobTitle: 'Pending: ' + (p.jobTitle || p.jobId),
-					company: 'Local Storage',
-					appliedDate: p.createdAt ? (new Date(p.createdAt)).toISOString().slice(0,10) : '',
-					status: 'Submitted' as any,
-					notes: p.cover || '',
-					budget: p.budget || '',
-				}));
-				setApps((s) => [...mapped, ...s]);
-			}
-		} catch (e) { /* ignore */ }
+		// No localStorage fallback - only canister data
+		addLog('ℹ️ No localStorage fallback - only canister data is used');
 		return () => { mounted = false; };
 		return () => { mounted = false; };
 	}, []);
@@ -161,14 +270,19 @@ export default function ApplicationsPage() {
 							<div>
 								<h1 className="text-2xl font-bold">My Applications</h1>
 								<p className="text-sm text-gray-500">Track your submitted applications and their status.</p>
-								<div className="mt-2">
+								<div className="mt-2 flex items-center gap-2">
 									{isAuthenticated ? (
 										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
 											✅ Connected to Canister
 										</span>
 									) : (
-										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-											⚠️ Not Connected (Local Storage Only)
+										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+											❌ Not Connected (Canister Only - No Local Storage)
+										</span>
+									)}
+									{loading && (
+										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+											🔄 Loading...
 										</span>
 									)}
 								</div>
@@ -229,7 +343,9 @@ export default function ApplicationsPage() {
 														if (!await authClient.isAuthenticated()) { window.alert('Please sign in to withdraw'); return; }
 														const identity = authClient.getIdentity();
 														const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-														const agent = createHttpAgent({ identity, host });
+														// Create HttpAgent directly
+														const { HttpAgent } = await import('@dfinity/agent');
+														const agent = new HttpAgent({ identity, host });
 														try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
 														const actor = await createJobActor({ agent });
 														if (actor.withdrawApplication) {
@@ -249,9 +365,36 @@ export default function ApplicationsPage() {
 							)}
 						</div>
 					</Card>
+
+					{/* Debug Logs Card */}
+					<Card className="p-6 border border-gray-200 bg-gray-50 mt-6">
+						<div className="flex items-center justify-between mb-4">
+							<h3 className="text-lg font-semibold text-gray-800">🔍 Debug Logs</h3>
+							<Button 
+								onClick={() => setLogs([])} 
+								variant="outline" 
+								size="sm"
+								className="text-xs"
+							>
+								Clear Logs
+							</Button>
+						</div>
+						<div className="max-h-64 overflow-y-auto space-y-1">
+							{logs.length === 0 ? (
+								<p className="text-gray-500 text-sm">No logs yet. Try refreshing the page or check console for more details.</p>
+							) : (
+								logs.map((log, index) => (
+									<div key={index} className="text-xs font-mono bg-white p-2 rounded border">
+										{log}
+									</div>
+								))
+							)}
+						</div>
+					</Card>
 				</div>
 			</div>
 		</div>
 	);
 }
+
 

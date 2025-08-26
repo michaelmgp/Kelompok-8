@@ -6,12 +6,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
-import { createIdentityActor, getMyProfile, updateProfile, createHttpAgent } from '@/lib/icp';
+import { createIdentityActor, getMyProfile, updateProfile } from '@/lib/icp';
 
 export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
 
   const [profile, setProfile] = useState({
     name: 'User Name',
@@ -27,6 +28,12 @@ export default function ProfilePage() {
 
   // whether the client is authenticated via Internet Identity / Plug
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Add log function
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 19)]); // Keep last 20 logs
+  };
 
   useEffect(() => {
     (async () => {
@@ -63,7 +70,7 @@ export default function ProfilePage() {
 
         const identity = authClient.getIdentity();
         const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-        const agent = createHttpAgent({ identity, host });
+        const agent = new HttpAgent({ identity, host });
         try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) { /* ignore */ }
 
         const actor = await createIdentityActor({ agent });
@@ -130,32 +137,68 @@ export default function ProfilePage() {
       if (auth) {
         // User is authenticated, save to canister
         try {
-          const identity = authClient.getIdentity();
-          const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-          const agent = createHttpAgent({ identity, host });
-          try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
-          
-          const actor = await createIdentityActor({ agent });
+                  const identity = authClient.getIdentity();
+        const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
+        const agent = new HttpAgent({ identity, host });
+        try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
+        
+        const actor = await createIdentityActor({ agent });
           const skillsArr = profile.skills.split(',').map(s => s.trim()).filter(Boolean);
           
+          addLog('🔍 Preparing profile data for canister...');
+          
+          // Ensure all parameters are properly formatted
+          const name = profile.name || '';
+          const email = profile.email || '';
+          const bio = profile.about || '';
+          const skills = skillsArr;
+          const portfolioUrl = profile.portfolioUrl || '';
+          const location = profile.location || '';
+          const experienceLevel = profile.role || '';
+          
+          // Log each parameter individually for debugging
+          addLog(`📝 Name: "${name}"`);
+          addLog(`📝 Email: "${email}"`);
+          addLog(`📝 Bio: "${bio}"`);
+          addLog(`📝 Skills: [${skills.join(', ')}]`);
+          addLog(`📝 Portfolio URL: "${portfolioUrl}"`);
+          addLog(`📝 Location: "${location}"`);
+          addLog(`📝 Experience Level: "${experienceLevel}"`);
+          
+          // Log actor method details
+          addLog('🔍 Actor details:');
+          addLog(`  - Actor type: ${typeof actor}`);
+          addLog(`  - Actor methods: ${Object.keys(actor || {}).join(', ')}`);
+          addLog(`  - updateProfile method: ${typeof actor?.updateProfile}`);
+          
           console.log('🔍 Saving profile to canister with data:', {
-            name: profile.name,
-            email: profile.email,
-            bio: profile.about,
-            skills: skillsArr,
-            portfolioUrl: profile.portfolioUrl || '',
-            location: profile.location || '',
-            experienceLevel: profile.role || ''
+            name,
+            email,
+            bio,
+            skills,
+            portfolioUrl,
+            location,
+            experienceLevel
           });
           
+          // Log the exact method call
+          addLog('🔍 Calling actor.updateProfile with 7 parameters...');
+          addLog(`  - Parameter 1 (name): ${typeof name} = "${name}"`);
+          addLog(`  - Parameter 2 (email): ${typeof email} = "${email}"`);
+          addLog(`  - Parameter 3 (bio): ${typeof bio} = "${bio}"`);
+          addLog(`  - Parameter 4 (skills): ${typeof skills} = [${skills.join(', ')}]`);
+          addLog(`  - Parameter 5 (portfolioUrl): ${typeof portfolioUrl} = "${portfolioUrl}"`);
+          addLog(`  - Parameter 6 (location): ${typeof location} = "${location}"`);
+          addLog(`  - Parameter 7 (experienceLevel): ${typeof experienceLevel} = "${experienceLevel}"`);
+          
           const result = await updateProfile({
-            name: profile.name,
-            email: profile.email,
-            bio: profile.about,
-            skills: skillsArr,
-            portfolioUrl: profile.portfolioUrl || '',
-            location: profile.location || '',
-            experienceLevel: profile.role || ''
+            name,
+            email,
+            bio,
+            skills,
+            portfolioUrl,
+            location,
+            experienceLevel
           }, actor);
           
           console.log('✅ Profile save result:', result);
@@ -344,6 +387,56 @@ export default function ProfilePage() {
                 </div>
               </div>
             )}
+          </Card>
+
+          {/* Logs Card */}
+          <Card className="p-6 border border-gray-200 bg-white mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">🔍 Canister Sync Logs</h3>
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={() => setLogs([])} 
+                  variant="ghost" 
+                  size="sm"
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  Clear Logs
+                </Button>
+                <span className="text-sm text-gray-500">
+                  {logs.length} logs
+                </span>
+              </div>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+              {logs.length === 0 ? (
+                <div className="text-gray-500 text-center py-8">
+                  <div className="text-2xl mb-2">📝</div>
+                  <div>No logs yet. Sync with canister to see activity.</div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {logs.map((log, index) => (
+                    <div 
+                      key={index} 
+                      className={`text-sm font-mono p-2 rounded ${
+                        log.includes('✅') ? 'bg-green-100 text-green-800' :
+                        log.includes('❌') ? 'bg-red-100 text-red-800' :
+                        log.includes('⚠️') ? 'bg-yellow-100 text-yellow-800' :
+                        log.includes('🔄') ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-4 text-xs text-gray-500">
+              💡 Logs show real-time activity when syncing with the canister. Green = success, Red = error, Yellow = warning, Blue = in progress.
+            </div>
           </Card>
         </div>
       </div>

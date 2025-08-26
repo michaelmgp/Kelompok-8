@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 
 // Server-side redirect to Internet Identity authorize page.
 // This hides the canisterId from the browser URL because the browser first visits /api/ii.
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
   // Allow overriding the canister via query param: /api/ii?canister=xxxx
   const queryCanister = Array.isArray(req.query.canister) ? req.query.canister[0] : (req.query.canister as string | undefined);
   // Default to the application canister ID (the canister the frontend wants a delegation for).
@@ -15,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const queryOrigin = Array.isArray(req.query.origin) ? req.query.origin[0] : (req.query.origin as string | undefined);
   // Force localhost:5000 for local development to ensure proper redirect
   const envDfxHost = process.env.NEXT_PUBLIC_DFX_HOST || '';
-  const isLocalDev = envDfxHost.includes('localhost:5000') || envDfxHost.includes('127.0.0.1:5000');
+  const isLocalDev = envDfxHost.includes('127.0.0.1:8000') || envDfxHost.includes('localhost:8000');
   
   let origin: string;
   if (queryOrigin) {
@@ -31,42 +31,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // optional redirect path (client-side route), e.g. /ii-callback
   const queryRedirect = Array.isArray(req.query.redirect) ? req.query.redirect[0] : (req.query.redirect as string | undefined) || '';
-  // Always redirect to Internet Identity public endpoint. Redirecting to the local replica
-  // root (`NEXT_PUBLIC_DFX_HOST`) can return a 503 for canister HTTP root paths, so avoid that.
-  // Include origin so Internet Identity shows the correct returning origin (frontend)
-  const originParam = origin ? `&origin=${encodeURIComponent(origin)}` : '';
-  
   // Set default redirect to /ii-callback if not specified
   const redirectPath = queryRedirect || '/ii-callback';
   const redirectParam = `&redirect_uri=${encodeURIComponent((origin || '') + redirectPath)}`;
-  const idUrl = `http://<ii-canister-id>.localhost:4943/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
+  
   // If an environment variable with the II canister id is provided, prefer a local address.
-  // Prefer returning a gateway-style URL when a gateway canister id or full gateway URL is configured
-  const iiCanister = process.env.NEXT_PUBLIC_II_CANISTER_ID || '';
-  const gatewayFull = process.env.NEXT_PUBLIC_II_GATEWAY_URL || ''; // optional full base like http://127.0.0.1:8000/?canisterId=ulvla...&id=
-  // Support either specific II gateway canister env or a generic gateway canister env
-  const gatewayCanister = process.env.NEXT_PUBLIC_II_GATEWAY_CANISTER_ID || process.env.NEXT_PUBLIC_GATEWAY_CANISTER_ID || ''; // optional gateway canister id to build gateway URL
-  // Detect if we're running in a local dev environment where the gateway should be used.
+  const iiCanister = process.env.NEXT_PUBLIC_INTERNET_IDENTITY_ID || '';
+  const gatewayFull = process.env.NEXT_PUBLIC_II_GATEWAY_URL || '';
+  const gatewayCanister = process.env.NEXT_PUBLIC_II_GATEWAY_CANISTER_ID || process.env.NEXT_PUBLIC_GATEWAY_CANISTER_ID || '';
   const localDetected = Boolean(envDfxHost.includes('127.0.0.1') || envDfxHost.includes('localhost') || gatewayFull || gatewayCanister);
-  const usePublic = Array.isArray(req.query.use_public) ? req.query.use_public[0] : (req.query.use_public as string | undefined);
 
   // Build the authorize URL. If we're running the local dfx HTTP server on port 8000
   // and an II canister is configured, prefer the canister-host form so the local
   // II static UI is used (e.g. http://<ii>.localhost:8000/#authorize?canisterId=<gateway>...)
-  let finalUrl = `https://identity.ic0.app/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
+  let finalUrl = `https://identity.ic0.app/#authorize?canisterId=${canister}&origin=${encodeURIComponent(origin)}${redirectParam}`;
 
-  const prefersLocalCanisterHost = Boolean(iiCanister && (envDfxHost.includes('localhost:8000') || envDfxHost.includes('127.0.0.1:8000') || envDfxHost.includes('localhost:5000') || envDfxHost.includes('127.0.0.1:5000')));
+  const prefersLocalCanisterHost = Boolean(iiCanister && (envDfxHost.includes('localhost:8000') || envDfxHost.includes('127.0.0.1:8000')));
   if (prefersLocalCanisterHost) {
-  // Use the application canister id (the canister we want a delegation for) so
-  // Internet Identity displays the Connect flow (not Manage). Fall back to the
-  // computed `canister` if APP canister env is not set.
-  const appCanister = process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '';
-  const authCanister = appCanister || canister;
-  
-  // Determine the port to use based on the environment
-  const port = envDfxHost.includes('5000') ? '5000' : '8000';
-  // Example: http://uxrrr-...localhost:5000/#authorize?canisterId=ucwa4-... or localhost:8000
-  finalUrl = `http://${iiCanister}.localhost:${port}/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
+    // Use the application canister id (the canister we want a delegation for) so
+    // Internet Identity displays the Connect flow (not Manage). Fall back to the
+    // computed `canister` if APP canister env is not set.
+    const appCanister = process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '';
+    const authCanister = appCanister || canister;
+    
+    // For local development, ALWAYS use port 8000 for II (dfx replica)
+    // Example: http://umunu-...localhost:8000/#authorize?canisterId=uzt4z-...&origin=http://localhost:5000&redirect_uri=http://localhost:5000/ii-callback
+    finalUrl = `http://${iiCanister}.localhost:8000/#authorize?canisterId=${canister}&origin=${encodeURIComponent(origin)}${redirectParam}`;
   }
   // Server-side debug log
   /* eslint-disable no-console */
@@ -77,21 +67,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       envAppCanister: process.env.NEXT_PUBLIC_APP_CANISTER_ID, 
       envIdentityCanister: process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID,
       origin,
-      originParam,
       redirectParam,
       envDfxHost,
       isLocalDev
     });
   /* eslint-enable no-console */
- 
-
   // If client explicitly requests no redirect, return the final URL as JSON so the
   // frontend can open it in a popup/tab and avoid navigating the current window.
   const noRedirectParam = Array.isArray(req.query.no_redirect) ? req.query.no_redirect[0] : (req.query.no_redirect as string | undefined);
   if (noRedirectParam === 'true' || noRedirectParam === '1') {
     res.setHeader('Content-Type', 'application/json');
     return res.status(200).json({ url: finalUrl });
-
   }
 
   res.redirect(302, finalUrl);
