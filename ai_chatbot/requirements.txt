@@ -1,0 +1,21 @@
+# Core dependencies
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+
+# AI/ML dependencies
+langchain
+langchain-groq
+
+# HTTP and networking
+requests
+
+# uAgents framework
+uagents
+uagents-core
+
+# Security and development tools
+bandit
+safety
+pip-audit

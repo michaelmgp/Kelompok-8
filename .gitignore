@@ -1,5 +1,155 @@
-node_modules
-dist
+# ===========================================
+# Python
+# ===========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+# Python lib directories only
+**/lib/
+# or more specifically:
+**/lib/
+!frontend/src/lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===========================================
+# Virtual Environments
+# ===========================================
+.venv/
+venv/
+ENV/
+env/
+ai_chatbot/.venv/
+
+# ===========================================
+# Environment Variables
+# ===========================================
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+
+# ===========================================
+# Node.js / JavaScript
+# ===========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ===========================================
+# Build Outputs
+# ===========================================
+dist/
+build/
+out/
+target/
+
+# ===========================================
+# ICP / DFX
+# ===========================================
+icp_contracts/.dfx/
+icp_contracts/.env
+
+# ===========================================
+# Explorer Agent
+# ===========================================
+explorer_agent/.env
+explorer_agent/*.log
+explorer_agent/__pycache__/
+explorer_agent/**/__pycache__/
+explorer_agent/**/*.pyc
+explorer_agent/.pytest_cache/
+explorer_agent/explorer_agent.db
+
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
 .DS_Store
-vite.config.ts.*
-*.tar.gz
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+icp_contracts/target/
+
+# ===========================================
+# Sensitive Files
+# ===========================================
+ai_chatbot/private_keys.json
+ai_chatbot/generate_agent_seed.py
+ai_chatbot/test_grok.py
+ai_chatbot/test_client.py
+
+# ===========================================
+# IDE / Editor
+# ===========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===========================================
+# Operating System
+# ===========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ===========================================
+# Logs and Cache
+# ===========================================
+*.log
+logs/
+.cache/
+*.tmp
+*.temp

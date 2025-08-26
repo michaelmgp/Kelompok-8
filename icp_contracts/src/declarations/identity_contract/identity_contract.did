@@ -1,0 +1,79 @@
+type VerificationStatus = 
+ variant {
+   Expired;
+   Pending;
+   Rejected;
+   Verified;
+ };
+type VerificationRecord = 
+ record {
+   expires_at: opt int;
+   id: text;
+   status: VerificationStatus;
+   user_principal: principal;
+   verification_data: text;
+   verification_type: text;
+   verified_at: opt int;
+   verifier: opt principal;
+ };
+type UserProfile = 
+ record {
+   bio: text;
+   created_at: int;
+   email: text;
+   experience_level: text;
+   location: text;
+   name: text;
+   portfolio_url: text;
+   "principal": principal;
+   reputation_score: float64;
+   skills: vec text;
+   updated_at: int;
+   verification_status: VerificationStatus;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: text;
+ };
+type ReputationEntry = 
+ record {
+   created_at: int;
+   id: text;
+   job_id: text;
+   rating: float64;
+   review: text;
+   reviewer: principal;
+   user_principal: principal;
+ };
+/// * Identity Contract - ICP Smart Contract for User Identity Management
+///  * Handles user profiles, verification, and reputation on Internet Computer
+service : {
+  addReputation: (userPrincipal: principal, jobId: text, rating: float64,
+   review: text) -> (Result);
+  getAllProfiles: () -> (vec UserProfile) query;
+  getAllUsers: () -> (vec UserProfile) query;
+  getContractStats: () ->
+   (record {
+      averageReputation: float64;
+      totalProfiles: nat;
+      totalReputations: nat;
+      totalVerifications: nat;
+      verifiedProfiles: nat;
+    }) query;
+  getMyProfile: () -> (opt UserProfile);
+  getPendingVerifications: () -> (vec VerificationRecord) query;
+  getUserProfile: (userPrincipal: principal) -> (opt UserProfile) query;
+  getUserReputations: (userPrincipal: principal) ->
+   (vec ReputationEntry) query;
+  getUserVerifications: (userPrincipal: principal) ->
+   (vec VerificationRecord) query;
+  getVerification: (verificationId: text) -> (opt VerificationRecord) query;
+  processVerification: (verificationId: text, approved: bool, expiresAt:
+   opt int) -> (Result);
+  searchProfilesBySkills: (searchSkills: vec text) -> (vec UserProfile) query;
+  submitVerification: (verificationType: text, verificationData: text) ->
+   (Result);
+  updateProfile: (name: text, email: text, bio: text, skills: vec text,
+   portfolioUrl: text, location: text, experienceLevel: text) -> (Result);
+}
