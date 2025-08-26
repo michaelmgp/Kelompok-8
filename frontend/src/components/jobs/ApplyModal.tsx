@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { X, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { connectPlug, createJobActor, connectInternetIdentity, savePendingApplication, createIdentityActor } from '@/lib/icp';
+import { savePendingApplication, createJobActor, createIdentityActor, createHttpAgent } from '@/lib/icp';
 import { AuthClient } from '@dfinity/auth-client';
 
 type Props = {
@@ -22,132 +22,84 @@ export default function ApplyModal({ open, job, onClose }: Props) {
   async function submit() {
     if (!open) return null;
     setLoading(true);
+    
     try {
-      // AuthClient (Internet Identity) - prefer gateway URL when available
-      let actor: any = undefined;
-      let usedAgent: any = undefined;
-      let submitted = false;
-      try {
-        const authClient = await AuthClient.create();
-        if (await authClient.isAuthenticated()) {
+      // Always try to authenticate first
+      const authClient = await AuthClient.create();
+      const isAuth = await authClient.isAuthenticated();
+      
+      if (isAuth) {
+        // User is authenticated, submit to canister
+        try {
           const envHost = process.env.NEXT_PUBLIC_DFX_HOST || '';
           const jobGatewayUrl = process.env.NEXT_PUBLIC_JOB_GATEWAY_URL || '';
           const isMainnet = !envHost || envHost.includes('ic0.app');
           let host = isMainnet ? 'https://ic0.app' : envHost;
+          
           // If a gateway-style URL is provided for jobs, prefer it on local/dev
           if (!isMainnet && jobGatewayUrl) host = jobGatewayUrl;
+          
           const identity = authClient.getIdentity();
-          const { HttpAgent } = await import('@dfinity/agent');
-          const agent = new HttpAgent({ identity, host });
-          try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch {}
-          actor = await createJobActor({ agent });
-          usedAgent = agent;
-          // Get profile
-          let name = '', email = '', role = '', avatar = '';
-          try {
-            const identityActor = await createIdentityActor({ agent });
-            const profile = await identityActor.getMyProfile?.();
-            name = profile?.name ? String(profile.name) : '';
-            email = profile?.email ? String(profile.email) : '';
-            role = profile?.role ? String(profile.role) : '';
-            avatar = profile?.avatar !== undefined && profile?.avatar !== null ? String(profile.avatar) : '';
-          } catch {}
+          const agent = createHttpAgent({ identity, host });
+          try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
+          
+          const actor = await createJobActor({ agent });
+          
           const safeJobId = String(job.id || '');
           const safeCover = String(cover || '');
           const safeBudget = String(budget || '');
-          if (actor.submitApplicationWithProfile) {
-            await actor.submitApplicationWithProfile(safeJobId, safeCover, safeBudget, name, email, role, avatar);
-          } else {
-            await actor.submitApplication(safeJobId, safeCover, safeBudget);
+          
+          // Validate required fields
+          if (!safeJobId || safeJobId.trim() === '') {
+            throw new Error('Job ID is required');
           }
+          if (!safeCover || safeCover.trim() === '') {
+            throw new Error('Cover letter is required');
+          }
+          if (!safeBudget || safeBudget.trim() === '') {
+            throw new Error('Budget is required');
+          }
+          
+          console.log('Submitting application with:', { safeJobId, safeCover, safeBudget });
+          
+          // Use the correct method from job_contract.mo
+          await actor.submitApplication(safeJobId, safeCover, safeBudget);
+          
+          // Success! Redirect to applications page
+          window.alert('✅ Application submitted successfully to canister!');
           window.location.href = '/dashboard/applications';
-          submitted = true;
+          return;
+        } catch (err: any) {
+          console.error('Failed to submit to canister', err);
+          window.alert('❌ Failed to submit to canister: ' + (err?.message || String(err)));
           setLoading(false);
           return;
         }
-      } catch {}
-      if (submitted) return;
-
-      // 3. Plug
-      const plugRes = await connectPlug();
-      if (plugRes.ok && plugRes.actor) {
-        actor = plugRes.actor;
-        usedAgent = plugRes.agent;
       } else {
-        // 4. Internet Identity popup
-        try {
-          const origin = typeof window !== 'undefined' ? window.location.origin : '';
-          const resp = await fetch(`/api/ii?origin=${encodeURIComponent(origin)}&redirect=/ii-callback&no_redirect=true&use_public=1`);
-          if (resp.ok) {
-            const body = await resp.json();
-            const iiUrl = body?.url;
-            if (iiUrl) {
-              try {
-                const features = 'noopener,noreferrer,width=600,height=800';
-                const win = window.open(iiUrl, 'ii_popup', features);
-                if (!win) {
-                  const a = document.createElement('a');
-                  a.href = iiUrl;
-                  a.target = '_blank';
-                  a.rel = 'noopener noreferrer';
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                } else {
-                  try { win.focus(); } catch {}
-                }
-                try { savePendingApplication({ jobId: job.id, cover: cover || '', budget: budget || '' }); } catch {}
-                window.alert('Opened Internet Identity in a new window to complete authentication. Your application is saved locally and will be submitted after sign-in.');
-                setLoading(false);
-                return;
-              } catch {}
-            }
-          }
-        } catch {}
-        // 5. Anonymous fallback
-        const envHost = typeof process !== 'undefined' ? (process.env.NEXT_PUBLIC_DFX_HOST || '') : '';
-        const host = envHost && envHost.trim() !== ''
-          ? envHost
-          : (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-            ? 'http://127.0.0.1:8000'
-            : window.location.origin);
-        const { HttpAgent } = await import('@dfinity/agent');
-        let anonAgent;
-        try {
-          new URL(host);
-          anonAgent = new HttpAgent({ host });
-        } catch {
-          window.alert('Invalid replica host URL. Please set NEXT_PUBLIC_DFX_HOST or run the local replica.');
-          setLoading(false);
-          return;
+        // User not authenticated, save locally and redirect to login
+        try { 
+          savePendingApplication({ 
+            jobId: job.id, 
+            cover: cover || '', 
+            budget: budget || '' 
+          }); 
+        } catch (err: any) {
+          console.error('Failed to save pending application', err);
         }
-        try { if (process.env.NODE_ENV !== 'production') await anonAgent.fetchRootKey(); } catch {}
-        actor = await createJobActor({ agent: anonAgent });
-        usedAgent = anonAgent;
-        window.alert('You are not connected with ICP/Plug. Your application will be submitted anonymously to the canister.');
+        
+        window.alert('🔐 Please sign in with Internet Identity to submit your application to the canister. Your application is saved locally and will be submitted after sign-in.');
+        
+        // Redirect to login
+        setTimeout(() => {
+          window.location.href = '/api/ii?redirect=/dashboard/jobboard';
+        }, 1000);
+        
+        setLoading(false);
+        return;
       }
-      // 6. Profile snapshot if possible
-      let name = '', email = '', role = '', avatar = '';
-      try {
-        const identityActor = await createIdentityActor({ agent: usedAgent || (actor as any)?._agent });
-        const profile = await identityActor.getMyProfile?.();
-        name = profile?.name ? String(profile.name) : '';
-        email = profile?.email ? String(profile.email) : '';
-        role = profile?.role ? String(profile.role) : '';
-        avatar = profile?.avatar !== undefined && profile?.avatar !== null ? String(profile.avatar) : '';
-      } catch {}
-      const safeJobId = String(job.id || '');
-      const safeCover = String(cover || '');
-      const safeBudget = String(budget || '');
-      if (actor && actor.submitApplicationWithProfile) {
-        await actor.submitApplicationWithProfile(safeJobId, safeCover, safeBudget, name, email, role, avatar);
-      } else if (actor) {
-        await actor.submitApplication(safeJobId, safeCover, safeBudget);
-      }
-      window.location.href = '/dashboard/applications';
-    } catch (err) {
-      console.error('submit failed', err);
-      window.alert('Failed to submit application: ' + String(err));
+    } catch (err: any) {
+      console.error('Unexpected error in submit', err);
+      window.alert('❌ Unexpected error: ' + (err?.message || String(err)));
     } finally {
       setLoading(false);
     }
@@ -164,19 +116,55 @@ export default function ApplyModal({ open, job, onClose }: Props) {
               <X size={18} />
             </button>
           </div>
+          
           <div className="space-y-3">
-            <label className="text-sm font-medium">Cover letter</label>
-            <textarea value={cover} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCover(e.target.value)} rows={6} className="w-full p-3 border rounded resize-none" />
+            <div>
+              <label className="text-sm font-medium">Cover letter</label>
+              <textarea 
+                value={cover} 
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCover(e.target.value)} 
+                rows={6} 
+                className="w-full p-3 border rounded resize-none" 
+                placeholder="Explain why you're interested in this position..."
+              />
+            </div>
+            
             <div>
               <label className="text-sm font-medium">Proposed budget</label>
-              <input value={budget} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBudget(e.target.value)} placeholder="e.g. 1500" className="w-40 mt-2 p-2 border rounded" />
+              <input 
+                type="text" 
+                value={budget} 
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBudget(e.target.value)} 
+                className="w-full p-3 border rounded" 
+                placeholder="e.g., $50/hour or $5000 project"
+              />
             </div>
-          </div>
-          <div className="mt-6 flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
-            <Button onClick={submit} disabled={loading}>
-              <span className="inline-flex items-center gap-2"><Send size={16} /> {loading ? 'Submitting...' : 'Submit Application'}</span>
-            </Button>
+            
+            <div className="pt-4">
+              <Button 
+                onClick={submit} 
+                disabled={loading || !cover.trim() || !budget.trim()} 
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Submitting...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Send size={16} />
+                    Submit Application
+                  </div>
+                )}
+              </Button>
+              
+              {(!cover.trim() || !budget.trim()) && (
+                <p className="text-xs text-red-500 mt-2 text-center">
+                  Please fill in both cover letter and budget before submitting
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>

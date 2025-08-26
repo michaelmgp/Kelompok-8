@@ -206,16 +206,38 @@ export default function TopNavigation() {
                           Login (Mainnet II)
                         </Button>
 
-                        <Button className="w-full" variant="outline" data-testid="button-ii-login-local" onClick={async () => {
+                        <Button className="w-full" data-testid="button-ii-login-local" onClick={async () => {
                           try {
-                            const resp = await connectInternetIdentity();
-                            if (resp.ok && resp.url) {
-                              window.open(resp.url, 'icp_local', 'width=600,height=800');
-                            } else {
-                              alert('Local II not available: ' + (resp.error || 'unknown'));
+                            const authClient = await AuthClient.create();
+                            // Build a full identity provider URL. Prefer configured II canister (NEXT_PUBLIC_II_CANISTER_ID)
+                            // falling back to the common localhost:8000 host.
+                            const iiCanister = (process.env.NEXT_PUBLIC_II_CANISTER_ID || '').trim();
+                            const appCanister = (process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '').trim();
+                            const proto = window.location.protocol || 'http:';
+                            const iiHost = iiCanister ? `${proto}//${iiCanister}.localhost:8000` : `${proto}//localhost:8000`;
+                            await authClient.login({
+                              identityProvider: iiHost,
+                              onSuccess: async () => {
+                                try { localStorage.setItem('cv:isAuthenticated', '1'); } catch (e) {}
+                                setIsAuthenticated(true);
+                                try { window.location.href = '/dashboard'; } catch (e) { window.location.reload(); }
+                              }
+                            });
+                          } catch (err) {
+                            console.debug('AuthClient.login failed, fallback to opening hosted II', err);
+                            try {
+                              const iiCanister = (process.env.NEXT_PUBLIC_II_CANISTER_ID || '').trim();
+                              const appCanister = (process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '').trim();
+                              const proto = window.location.protocol || 'http:';
+                              const iiHost = iiCanister ? `${proto}//${iiCanister}.localhost:8000` : `${proto}//localhost:8000`;
+                              const origin = window.location.origin || `${proto}//${window.location.host}`;
+                              const redirect_uri = `${origin}/dashboard`;
+                              const popupUrl = `${iiHost}/#authorize?canisterId=${encodeURIComponent(appCanister)}&origin=${encodeURIComponent(origin)}&redirect_uri=${encodeURIComponent(redirect_uri)}`;
+                              window.open(popupUrl, 'icp_auth', 'width=600,height=800');
+                            } catch (e) {
+                              // last resort: open public identity host
+                              window.open('https://identity.ic0.app/#authorize', '_blank');
                             }
-                          } catch (e) {
-                            alert('Failed to open local II: ' + String(e));
                           }
                         }}>
                           Login (Local II)

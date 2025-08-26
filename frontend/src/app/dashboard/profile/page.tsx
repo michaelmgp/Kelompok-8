@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
-import { createIdentityActor, getMyProfile, updateProfile } from '@/lib/icp';
+import { createIdentityActor, getMyProfile, updateProfile, createHttpAgent } from '@/lib/icp';
 
 export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
@@ -63,7 +63,7 @@ export default function ProfilePage() {
 
         const identity = authClient.getIdentity();
         const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-        const agent = new HttpAgent({ identity, host });
+        const agent = createHttpAgent({ identity, host });
         try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) { /* ignore */ }
 
         const actor = await createIdentityActor({ agent });
@@ -121,30 +121,49 @@ export default function ProfilePage() {
     }
     setSaving(true);
     setMessage(null);
+    
     try {
-      if (isAuthenticated) {
-        // perform canister write
+      // Always try to authenticate first
+      const authClient = await AuthClient.create();
+      const auth = await authClient.isAuthenticated();
+      
+      if (auth) {
+        // User is authenticated, save to canister
         try {
-          // create authenticated actor via AuthClient
-          const authClient = await AuthClient.create();
           const identity = authClient.getIdentity();
           const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-          const agent = new HttpAgent({ identity, host });
+          const agent = createHttpAgent({ identity, host });
           try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
+          
           const actor = await createIdentityActor({ agent });
           const skillsArr = profile.skills.split(',').map(s => s.trim()).filter(Boolean);
-          await updateProfile({
+          
+          console.log('🔍 Saving profile to canister with data:', {
             name: profile.name,
             email: profile.email,
             bio: profile.about,
             skills: skillsArr,
             portfolioUrl: profile.portfolioUrl || '',
             location: profile.location || '',
-            experienceLevel: profile.role || '',
-            role: profile.role || ''
+            experienceLevel: profile.role || ''
+          });
+          
+          const result = await updateProfile({
+            name: profile.name,
+            email: profile.email,
+            bio: profile.about,
+            skills: skillsArr,
+            portfolioUrl: profile.portfolioUrl || '',
+            location: profile.location || '',
+            experienceLevel: profile.role || ''
           }, actor);
-          setMessage('Profile saved to canister');
-          // persist local copy
+          
+          console.log('✅ Profile save result:', result);
+          
+          setMessage('✅ Profile successfully saved to canister!');
+          setIsAuthenticated(true);
+          
+          // Update local copy for faster UI
           try { localStorage.setItem('cv:profile', JSON.stringify({
             name: profile.name,
             email: profile.email,
@@ -155,14 +174,29 @@ export default function ProfilePage() {
             experienceLevel: profile.role,
             role: profile.role || ''
           })); } catch (e) {}
-        } catch (err) {
+          
+        } catch (err: any) {
           console.error('save: canister update failed', err);
-          setMessage('Failed to save to canister — saved locally');
-          try { localStorage.setItem('cv:profile', JSON.stringify(profile)); } catch (e) {}
+          setMessage('❌ Failed to save to canister: ' + (err?.message || String(err)));
+          
+          // Fallback: save locally as pending
+          try { localStorage.setItem('cv:pendingProfile', JSON.stringify({
+            name: profile.name,
+            email: profile.email,
+            bio: profile.about,
+            skills: profile.skills.split(',').map(s=>s.trim()).filter(Boolean),
+            portfolioUrl: profile.portfolioUrl,
+            location: profile.location,
+            experienceLevel: profile.role,
+            role: profile.role || ''
+          })); } catch (e) {}
         }
       } else {
-        // persist locally as pending profile
-          try { localStorage.setItem('cv:pendingProfile', JSON.stringify({
+        // User not authenticated, redirect to login
+        setMessage('🔐 Please sign in with Internet Identity to save your profile to the canister');
+        
+        // Save locally as pending profile
+        try { localStorage.setItem('cv:pendingProfile', JSON.stringify({
           name: profile.name,
           email: profile.email,
           bio: profile.about,
@@ -172,8 +206,15 @@ export default function ProfilePage() {
           experienceLevel: profile.role,
           role: profile.role || ''
         })); } catch (e) {}
-        setMessage('Profile saved locally. Complete Internet Identity to persist to canister.');
+        
+        // Redirect to login after a short delay
+        setTimeout(() => {
+          window.location.href = '/api/ii?redirect=/dashboard/profile';
+        }, 2000);
       }
+    } catch (err: any) {
+      console.error('save: unexpected error', err);
+      setMessage('❌ Unexpected error: ' + (err?.message || String(err)));
     } finally {
       setSaving(false);
       setEditing(false);
@@ -201,11 +242,33 @@ export default function ProfilePage() {
                   <h2 className="text-2xl font-semibold" data-testid="profile-name">{profile.name}</h2>
                   <div className="text-sm text-gray-500" data-testid="profile-username">@{profile.username}</div>
                   <div className="text-sm text-gray-700 mt-1" data-testid="profile-role">{(profile as any).role} — {profile.location}</div>
+                  <div className="mt-2">
+                    {isAuthenticated ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        ✅ Connected to Canister
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        ⚠️ Not Connected (Local Storage Only)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <Button onClick={() => { setEditing((s) => !s); setMessage(null); }} data-testid="button-edit-profile">{editing ? 'Close' : 'Edit Profile'}</Button>
+                {!isAuthenticated && (
+                  <Button 
+                    onClick={() => window.location.href = '/api/ii?redirect=/dashboard/profile'} 
+                    variant="outline" 
+                    className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                  >
+                    🔐 Sign In to Save
+                  </Button>
+                )}
+                <Button onClick={() => { setEditing((s) => !s); setMessage(null); }} data-testid="button-edit-profile">
+                  {editing ? 'Close' : 'Edit Profile'}
+                </Button>
               </div>
             </div>
 

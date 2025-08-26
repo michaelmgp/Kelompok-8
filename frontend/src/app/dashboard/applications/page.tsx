@@ -10,30 +10,33 @@ type Application = {
 	jobTitle: string;
 	company: string;
 	appliedDate: string; // ISO date
-	status: 'Applied' | 'Interview' | 'Offered' | 'Rejected' | 'Withdrawn';
+	status: 'Submitted' | 'UnderReview' | 'Accepted' | 'Rejected' | 'Withdrawn';
 	notes?: string;
 	role?: string;
+	budget?: string;
 };
 
-import { createJobActor, getPendingApplications, flushPendingApplications } from '@/lib/icp';
+import { createJobActor, getPendingApplications, flushPendingApplications, createHttpAgent } from '@/lib/icp';
 import { AuthClient } from '@dfinity/auth-client';
 
 
 export default function ApplicationsPage() {
 	const [apps, setApps] = useState<Application[]>([]);
-	const [filter, setFilter] = useState<'All'|'Applied'|'Interview'|'Offered'|'Rejected'|'Withdrawn'>('All');
+	const [filter, setFilter] = useState<'All'|'Submitted'|'UnderReview'|'Accepted'|'Rejected'|'Withdrawn'>('All');
 	const [search, setSearch] = useState('');
+	const [isAuthenticated, setIsAuthenticated] = useState(false);
 
 	useEffect(() => {
 		let mounted = true;
 		(async () => {
 			try {
 				const authClient = await AuthClient.create();
-				if (!await authClient.isAuthenticated()) return;
+				const auth = await authClient.isAuthenticated();
+				setIsAuthenticated(!!auth);
+				if (!auth) return;
 				const identity = authClient.getIdentity();
 				const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-				const { HttpAgent } = await import('@dfinity/agent');
-				const agent = new HttpAgent({ identity, host });
+				const agent = createHttpAgent({ identity, host });
 				try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
 				const actor = await createJobActor({ agent });
 				const recs = await actor.getMyApplications();
@@ -49,27 +52,44 @@ export default function ApplicationsPage() {
 							}
 						}
 					} catch (e) {}
+					
 					// try to fetch job details for nicer display
-					let jobTitle = r.job_title || r.jobTitle || 'Unknown';
-					let company = r.company || 'Unknown';
+					let jobTitle = 'Unknown Job';
+					let company = 'Unknown Company';
 					try {
-						const jobRes = await actor.getJob(r.job_id || r.jobId || r.job?.id || '');
-						if (jobRes && jobRes[0]) {
-							const j = jobRes[0];
-							jobTitle = j.title || jobTitle;
-							company = j.client ? String(j.client) : (j.client_text || company);
+						const jobRes = await actor.getJob(r.job_id || '');
+						if (jobRes) {
+							jobTitle = jobRes.title || 'Unknown Job';
+							// For now, use job ID as company since client is Principal
+							company = `Job #${r.job_id}`;
 						}
 					} catch (e) {
-						// ignore
+						console.debug('Failed to fetch job details:', e);
 					}
+					
+					// Map canister status to UI status
+					let status: Application['status'] = 'Submitted';
+					if (r.status) {
+						const statusStr = String(r.status);
+						switch (statusStr) {
+							case 'Submitted': status = 'Submitted'; break;
+							case 'UnderReview': status = 'UnderReview'; break;
+							case 'Accepted': status = 'Accepted'; break;
+							case 'Rejected': status = 'Rejected'; break;
+							case 'Withdrawn': status = 'Withdrawn'; break;
+							default: status = 'Submitted';
+						}
+					}
+					
 					return {
 						id: r.id || String(Math.random()).slice(2),
 						jobTitle,
 						company,
-						appliedDate: applied || (r.applied_at_text || ''),
-						status: (r.status && String(r.status)) || 'Applied',
-						notes: r.cover_letter || r.notes || '',
-						role: r.role || undefined,
+						appliedDate: applied,
+						status,
+						notes: r.cover_letter || '',
+						role: jobTitle, // Use job title as role
+						budget: r.proposed_budget || '',
 					} as Application;
 				}));
 				if (!mounted) return;
@@ -88,10 +108,11 @@ export default function ApplicationsPage() {
 				const mapped = pending.map((p: any) => ({
 					id: p.jobId + '::pending::' + (p.createdAt || ''),
 					jobTitle: 'Pending: ' + (p.jobTitle || p.jobId),
-					company: '',
+					company: 'Local Storage',
 					appliedDate: p.createdAt ? (new Date(p.createdAt)).toISOString().slice(0,10) : '',
-					status: 'Applied' as any,
+					status: 'Submitted' as any,
 					notes: p.cover || '',
+					budget: p.budget || '',
 				}));
 				setApps((s) => [...mapped, ...s]);
 			}
@@ -115,15 +136,15 @@ export default function ApplicationsPage() {
 
 		function statusClasses(status: Application['status']) {
 			switch (status) {
-				case 'Interview':
+				case 'UnderReview':
 					return 'text-amber-800 bg-amber-100';
 				case 'Rejected':
 					return 'text-red-700 bg-red-100';
-				case 'Offered':
+				case 'Accepted':
 					return 'text-emerald-800 bg-emerald-100';
 				case 'Withdrawn':
 					return 'text-gray-700 bg-gray-100';
-				case 'Applied':
+				case 'Submitted':
 				default:
 					return 'text-sky-700 bg-sky-100';
 			}
@@ -140,18 +161,39 @@ export default function ApplicationsPage() {
 							<div>
 								<h1 className="text-2xl font-bold">My Applications</h1>
 								<p className="text-sm text-gray-500">Track your submitted applications and their status.</p>
+								<div className="mt-2">
+									{isAuthenticated ? (
+										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+											✅ Connected to Canister
+										</span>
+									) : (
+										<span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+											⚠️ Not Connected (Local Storage Only)
+										</span>
+									)}
+								</div>
 							</div>
 
 											<div className="flex items-center gap-3 w-full md:w-auto">
 												<input value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>)=>setSearch(e.target.value)} placeholder="Search by job or company" className="px-3 py-2 border rounded w-full md:w-64" data-testid="input-search-apps" />
 												<select value={filter} onChange={(e: React.ChangeEvent<HTMLSelectElement>)=>setFilter(e.target.value as any)} className="px-3 py-2 border rounded" data-testid="select-filter-apps">
 									<option value="All">All</option>
-									<option value="Applied">Applied</option>
-									<option value="Interview">Interview</option>
-									<option value="Offered">Offered</option>
+									<option value="Submitted">Submitted</option>
+									<option value="UnderReview">Under Review</option>
+									<option value="Accepted">Accepted</option>
 									<option value="Rejected">Rejected</option>
 									<option value="Withdrawn">Withdrawn</option>
 								</select>
+								
+								{!isAuthenticated && (
+									<Button 
+										onClick={() => window.location.href = '/api/ii?redirect=/dashboard/applications'} 
+										variant="outline" 
+										className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 whitespace-nowrap"
+									>
+										🔐 Sign In to View
+									</Button>
+								)}
 							</div>
 						</div>
 
@@ -166,12 +208,20 @@ export default function ApplicationsPage() {
 												<h3 className="text-lg font-semibold">{a.role || a.jobTitle}</h3>
 											</div>
 											<div className="text-sm text-gray-500 mt-1">at {a.company}</div>
-											<div className="text-sm text-gray-600 mt-1">Applied: {a.appliedDate} • <span className={`font-medium inline-flex items-center gap-2 px-2 py-1 rounded ${statusClasses(a.status)}`} data-testid={`application-status-${a.id}`}>{a.status}</span></div>
+											<div className="text-sm text-gray-600 mt-1">
+												Applied: {a.appliedDate} • 
+												<span className={`font-medium inline-flex items-center gap-2 px-2 py-1 rounded ${statusClasses(a.status)}`} data-testid={`application-status-${a.id}`}>
+													{a.status}
+												</span>
+												{a.budget && (
+													<span className="ml-2 text-green-600">💰 {a.budget}</span>
+												)}
+											</div>
 											{a.notes && <div className="text-sm text-gray-700 mt-2">{a.notes}</div>}
 										</div>
 
 										<div className="mt-3 sm:mt-0 sm:ml-6 flex items-center gap-2">
-											{a.status !== 'Withdrawn' && a.status !== 'Offered' && (
+											{a.status !== 'Withdrawn' && a.status !== 'Accepted' && (
 												<Button variant="outline" onClick={async () => {
 													// attempt to call canister to withdraw or mark withdrawn
 													try {
@@ -179,8 +229,7 @@ export default function ApplicationsPage() {
 														if (!await authClient.isAuthenticated()) { window.alert('Please sign in to withdraw'); return; }
 														const identity = authClient.getIdentity();
 														const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-														const { HttpAgent } = await import('@dfinity/agent');
-														const agent = new HttpAgent({ identity, host });
+														const agent = createHttpAgent({ identity, host });
 														try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
 														const actor = await createJobActor({ agent });
 														if (actor.withdrawApplication) {

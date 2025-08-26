@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
 import { hashPassword } from '@/lib/crypto';
-import { setPasswordOnCanister } from '@/lib/icp';
+import { setPasswordOnCanister, createHttpAgent } from '@/lib/icp';
 
 export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -49,7 +49,7 @@ export default function SettingsPage() {
         try {
           const identity = authClient.getIdentity();
           const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-          const agent = new HttpAgent({ identity, host });
+          const agent = createHttpAgent({ identity, host });
           try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
           // setPasswordOnCanister will use the provided actor if available; pass
           // an actor would be more explicit but setPasswordOnCanister accepts

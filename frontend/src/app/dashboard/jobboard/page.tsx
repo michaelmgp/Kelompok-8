@@ -1,16 +1,35 @@
 "use client";
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Sidebar from '@/components/dashboard/Sidebar';
 import { Card } from '@/components/ui/card';
 import jobs from '@/lib/jobs';
 import ApplyModal from '@/components/jobs/ApplyModal';
+import { Button } from '@/components/ui/button';
+import { AuthClient } from '@dfinity/auth-client';
 
 export default function JobBoardPage() {
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(4);
+  const [pageSize] = useState(4);
   const [searchTerm, setSearchTerm] = useState('');
   const [applyingJob, setApplyingJob] = useState<any | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const authClient = await AuthClient.create();
+        const auth = await authClient.isAuthenticated();
+        setIsAuthenticated(!!auth);
+      } catch (err) {
+        console.debug('Failed to check authentication', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    checkAuth();
+  }, []);
 
   function openApply(job: any) {
     setApplyingJob(job);
@@ -53,6 +72,19 @@ export default function JobBoardPage() {
           <div className="w-full md:flex-1">
             <h1 className="text-2xl font-bold">Job Board</h1>
             <p className="text-sm text-gray-600 mt-1">Browse curated openings matched by our AI agents.</p>
+            {!loading && (
+              <div className="mt-2">
+                {isAuthenticated ? (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    ✅ Connected to Canister
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    ⚠️ Not Connected (Apply will be saved locally)
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 md:flex-none w-full md:w-auto flex items-center gap-3">
@@ -66,11 +98,21 @@ export default function JobBoardPage() {
             />
 
             <label className="text-sm text-gray-600">Per page</label>
-            <select value={pageSize} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setPageSize(Number(e.target.value)); setPage(1); }} className="px-2 py-1 border rounded">
+            <select value={pageSize} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setPage(1); }} className="px-2 py-1 border rounded">
               <option value={4}>4</option>
               <option value={6}>6</option>
               <option value={8}>8</option>
             </select>
+
+            {!isAuthenticated && (
+              <Button 
+                onClick={() => window.location.href = '/api/ii?redirect=/dashboard/jobboard'} 
+                variant="outline" 
+                className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 whitespace-nowrap"
+              >
+                🔐 Sign In to Apply
+              </Button>
+            )}
           </div>
         </div>
 

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import ProfileSettings from './ProfileSettings';
 import Link from 'next/link';
 import { Home, Briefcase, User, Settings, LogOut } from 'lucide-react';
+import { AuthClient } from '@dfinity/auth-client';
+import { createIdentityActor, createHttpAgent } from '@/lib/icp';
 
 export default function Sidebar() {
   const [editing, setEditing] = useState(false);
@@ -10,37 +12,70 @@ export default function Sidebar() {
   const [userRole, setUserRole] = useState('');
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('cv:profile') || localStorage.getItem('cv:pendingProfile');
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p) {
-          setUserName(p.name || 'User Name');
-          setUserEmail(p.email || '@username');
-          setUserRole(p.role || '');
+    async function loadUserProfile() {
+      try {
+        // First try to get from canister if authenticated
+        const authClient = await AuthClient.create();
+        const isAuth = await authClient.isAuthenticated();
+        
+        if (isAuth) {
+          try {
+            const identity = authClient.getIdentity();
+            const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
+            const agent = createHttpAgent({ identity, host });
+            try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) {}
+            
+            const actor = await createIdentityActor({ agent });
+            const profile = await actor.getMyProfile();
+            
+            if (profile) {
+              setUserName(profile.name || 'User Name');
+              setUserEmail(profile.email || '@username');
+              setUserRole(profile.role || profile.experience_level || '');
+              
+              // Update localStorage for faster access
+              try { localStorage.setItem('cv:profile', JSON.stringify({
+                name: profile.name,
+                email: profile.email,
+                bio: profile.bio,
+                skills: profile.skills,
+                portfolioUrl: profile.portfolio_url,
+                location: profile.location,
+                experienceLevel: profile.role || profile.experience_level,
+                role: profile.role || ''
+              })); } catch (e) {}
+              return;
+            }
+          } catch (err) {
+            console.debug('Failed to fetch profile from canister, falling back to localStorage', err);
+          }
         }
-      }
-    } catch (e) {
-      // ignore
-    }
-    // also listen for storage events so other windows/tabs or the II callback
-    // can update the sidebar immediately when pending items are flushed
-    function onStorage(e: StorageEvent) {
-      if (e.key && (e.key.startsWith('cv:') || e.key === 'cv:isAuthenticated')) {
-        try {
-          const raw = localStorage.getItem('cv:profile') || localStorage.getItem('cv:pendingProfile');
-          if (raw) {
-            const p = JSON.parse(raw);
+        
+        // Fallback to localStorage if canister fetch fails or not authenticated
+        const raw = localStorage.getItem('cv:profile') || localStorage.getItem('cv:pendingProfile');
+        if (raw) {
+          const p = JSON.parse(raw);
+          if (p) {
             setUserName(p.name || 'User Name');
             setUserEmail(p.email || '@username');
             setUserRole(p.role || '');
-          } else {
-            // cleared
-            setUserName('User Name');
-            setUserEmail('@username');
-            setUserRole('');
           }
-        } catch (err) { /* ignore */ }
+        }
+      } catch (e) {
+        console.debug('Failed to load user profile', e);
+        // Set default values
+        setUserName('User Name');
+        setUserEmail('@username');
+        setUserRole('');
+      }
+    }
+    
+    loadUserProfile();
+    
+    // Listen for storage events for real-time updates
+    function onStorage(e: StorageEvent) {
+      if (e.key && (e.key.startsWith('cv:') || e.key === 'cv:isAuthenticated')) {
+        loadUserProfile();
       }
     }
     window.addEventListener('storage', onStorage);
@@ -62,6 +97,17 @@ export default function Sidebar() {
             <p className="font-semibold">{userName}</p>
             <p className="text-xs text-gray-500">{userEmail}</p>
             {userRole ? <div className="text-xs text-gray-600">{userRole}</div> : null}
+            <div className="mt-1">
+              {localStorage.getItem('cv:isAuthenticated') ? (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  ✅ Connected
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                  ⚠️ Local Only
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

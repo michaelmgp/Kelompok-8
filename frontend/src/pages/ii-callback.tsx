@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
-import { createIdentityActor, updateProfile, setPasswordOnCanister, flushPendingApplications } from '@/lib/icp';
+import { createIdentityActor, updateProfile, setPasswordOnCanister, flushPendingApplications, createHttpAgent } from '@/lib/icp';
 
 export default function IiCallbackPage() {
   const router = useRouter();
@@ -26,7 +26,10 @@ export default function IiCallbackPage() {
 
         const identity = authClient.getIdentity();
         const host = process.env.NEXT_PUBLIC_DFX_HOST || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : window.location.origin);
-        const agent = new HttpAgent({ identity, host });
+        
+        // Use utility function to create HttpAgent with proper configuration
+        const agent = createHttpAgent({ identity, host });
+        
         try { if (process.env.NODE_ENV !== 'production') await agent.fetchRootKey(); } catch (e) { console.warn('fetchRootKey failed', e); }
 
         // Create actor using authenticated identity

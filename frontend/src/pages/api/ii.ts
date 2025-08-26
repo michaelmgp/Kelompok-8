@@ -13,10 +13,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Allow overriding origin via query param: /api/ii?origin=http://localhost:5000
   const queryOrigin = Array.isArray(req.query.origin) ? req.query.origin[0] : (req.query.origin as string | undefined);
-  // Derive default origin from request headers if not provided
-  const proto = (req.headers['x-forwarded-proto'] as string) || 'http';
-  const defaultOrigin = req.headers.host ? `${proto}://${req.headers.host}` : '';
-  const origin = queryOrigin || defaultOrigin || '';
+  // Force localhost:5000 for local development to ensure proper redirect
+  const envDfxHost = process.env.NEXT_PUBLIC_DFX_HOST || '';
+  const isLocalDev = envDfxHost.includes('localhost:5000') || envDfxHost.includes('127.0.0.1:5000');
+  
+  let origin: string;
+  if (queryOrigin) {
+    origin = queryOrigin;
+  } else if (isLocalDev) {
+    // Force localhost:5000 for local development
+    origin = 'http://localhost:5000';
+  } else {
+    // Derive default origin from request headers if not provided
+    const proto = (req.headers['x-forwarded-proto'] as string) || 'http';
+    origin = req.headers.host ? `${proto}://${req.headers.host}` : '';
+  }
 
   // optional redirect path (client-side route), e.g. /ii-callback
   const queryRedirect = Array.isArray(req.query.redirect) ? req.query.redirect[0] : (req.query.redirect as string | undefined) || '';
@@ -24,7 +35,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // root (`NEXT_PUBLIC_DFX_HOST`) can return a 503 for canister HTTP root paths, so avoid that.
   // Include origin so Internet Identity shows the correct returning origin (frontend)
   const originParam = origin ? `&origin=${encodeURIComponent(origin)}` : '';
-  const redirectParam = queryRedirect ? `&redirect_uri=${encodeURIComponent((origin || '') + queryRedirect)}` : '';
+  
+  // Set default redirect to /ii-callback if not specified
+  const redirectPath = queryRedirect || '/ii-callback';
+  const redirectParam = `&redirect_uri=${encodeURIComponent((origin || '') + redirectPath)}`;
   const idUrl = `http://<ii-canister-id>.localhost:4943/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
   // If an environment variable with the II canister id is provided, prefer a local address.
   // Prefer returning a gateway-style URL when a gateway canister id or full gateway URL is configured
@@ -33,69 +47,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Support either specific II gateway canister env or a generic gateway canister env
   const gatewayCanister = process.env.NEXT_PUBLIC_II_GATEWAY_CANISTER_ID || process.env.NEXT_PUBLIC_GATEWAY_CANISTER_ID || ''; // optional gateway canister id to build gateway URL
   // Detect if we're running in a local dev environment where the gateway should be used.
-  const envDfxHost = process.env.NEXT_PUBLIC_DFX_HOST || '';
   const localDetected = Boolean(envDfxHost.includes('127.0.0.1') || envDfxHost.includes('localhost') || gatewayFull || gatewayCanister);
   const usePublic = Array.isArray(req.query.use_public) ? req.query.use_public[0] : (req.query.use_public as string | undefined);
 
+  // Build the authorize URL. If we're running the local dfx HTTP server on port 8000
+  // and an II canister is configured, prefer the canister-host form so the local
+  // II static UI is used (e.g. http://<ii>.localhost:8000/#authorize?canisterId=<gateway>...)
   let finalUrl = `https://identity.ic0.app/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-  if (iiCanister) {
-    // If local env detected and the caller did not explicitly request the public provider,
-    // force a 127.0.0.1 gateway-style URL so popups point to the local gateway rather than
-    // the public identity provider.
-    if (localDetected && usePublic !== '1') {
-      // If the local dfx HTTP server is being used (default dev port 4943), prefer
-      // the canister-host style so Internet Identity's static UI loads correctly
-      // (e.g. http://u6s2n-....localhost:4943/#authorize?...). This avoids the
-      // gateway returning the Candid UI for some canisters.
-      const useCanisterHost = envDfxHost.includes('4943') || envDfxHost.includes('.localhost:4943') || process.env.NEXT_PUBLIC_II_USE_CANISTER_HOST === '1';
-      if (useCanisterHost) {
-        const portMatch = (envDfxHost.match(/:(\d+)/) || [])[1] || '4943';
-        finalUrl = `http://${iiCanister}.localhost:${portMatch}/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-      } else if (gatewayFull) {
-        const sep = gatewayFull.includes('id=') ? '' : (gatewayFull.endsWith('&') || gatewayFull.endsWith('?') ? 'id=' : '&id=');
-        finalUrl = `${gatewayFull}${sep}${iiCanister}#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-      } else if (gatewayCanister) {
-        finalUrl = `http://127.0.0.1:8000/?canisterId=${gatewayCanister}&id=${iiCanister}#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-      } else {
-        finalUrl = `http://127.0.0.1:8000/?canisterId=${iiCanister}&id=${iiCanister}#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-      }
-    } else {
-      // Non-local or explicit public request: use previous behavior (prefer gateway when available, probe and fall back)
-      if (gatewayFull) {
-        const sep = gatewayFull.includes('id=') ? '' : (gatewayFull.endsWith('&') || gatewayFull.endsWith('?') ? 'id=' : '&id=');
-        finalUrl = `${gatewayFull}${sep}${iiCanister}#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-        try {
-          const probeUrl = `${gatewayFull}${sep}${iiCanister}`.split('#')[0];
-          const probeResp = await fetch(probeUrl, { method: 'HEAD' });
-          if (probeResp && probeResp.status === 404) {
-            console.warn(`/api/ii: gateway entry ${probeUrl} returned 404, falling back to identity.ic0.app`);
-            finalUrl = `https://identity.ic0.app/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-          }
-        } catch (e) {
-          console.warn(`/api/ii: gateway probe failed for ${gatewayFull} - ${String(e)}; falling back to identity.ic0.app`);
-          finalUrl = `https://identity.ic0.app/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-        }
-      } else if (gatewayCanister) {
-        finalUrl = `http://127.0.0.1:8000/?canisterId=${gatewayCanister}&id=${iiCanister}#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-        try {
-          const probeUrl = `http://127.0.0.1:8000/?canisterId=${gatewayCanister}&id=${iiCanister}`;
-          const probeResp = await fetch(probeUrl, { method: 'HEAD' });
-          if (probeResp && probeResp.status === 404) {
-            console.warn(`/api/ii: gateway entry ${probeUrl} returned 404, falling back to identity.ic0.app`);
-            finalUrl = `https://identity.ic0.app/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-          }
-        } catch (e) {
-          console.warn(`/api/ii: gateway probe failed for ${gatewayCanister} - ${String(e)}; falling back to identity.ic0.app`);
-          finalUrl = `https://identity.ic0.app/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-        }
-      } else {
-        finalUrl = `http://${iiCanister}.localhost:4943/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
-      }
-    }
+
+  const prefersLocalCanisterHost = Boolean(iiCanister && (envDfxHost.includes('localhost:8000') || envDfxHost.includes('127.0.0.1:8000') || envDfxHost.includes('localhost:5000') || envDfxHost.includes('127.0.0.1:5000')));
+  if (prefersLocalCanisterHost) {
+  // Use the application canister id (the canister we want a delegation for) so
+  // Internet Identity displays the Connect flow (not Manage). Fall back to the
+  // computed `canister` if APP canister env is not set.
+  const appCanister = process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '';
+  const authCanister = appCanister || canister;
+  
+  // Determine the port to use based on the environment
+  const port = envDfxHost.includes('5000') ? '5000' : '8000';
+  // Example: http://uxrrr-...localhost:5000/#authorize?canisterId=ucwa4-... or localhost:8000
+  finalUrl = `http://${iiCanister}.localhost:${port}/#authorize?canisterId=${canister}${originParam}${redirectParam}`;
   }
   // Server-side debug log
   /* eslint-disable no-console */
-    console.log("/api/ii redirecting to:", finalUrl, { queryCanister, usedCanister: canister, iiCanister, envAppCanister: process.env.NEXT_PUBLIC_APP_CANISTER_ID, envIdentityCanister: process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID });
+    console.log("/api/ii redirecting to:", finalUrl, { 
+      queryCanister, 
+      usedCanister: canister, 
+      iiCanister, 
+      envAppCanister: process.env.NEXT_PUBLIC_APP_CANISTER_ID, 
+      envIdentityCanister: process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID,
+      origin,
+      originParam,
+      redirectParam,
+      envDfxHost,
+      isLocalDev
+    });
   /* eslint-enable no-console */
  
 
@@ -105,6 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (noRedirectParam === 'true' || noRedirectParam === '1') {
     res.setHeader('Content-Type', 'application/json');
     return res.status(200).json({ url: finalUrl });
+
   }
 
   res.redirect(302, finalUrl);
