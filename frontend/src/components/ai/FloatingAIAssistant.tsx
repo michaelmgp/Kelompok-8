@@ -112,12 +112,121 @@ export default function FloatingAIAssistant() {
   };
 
   const handleQuickAction = (action: string) => {
-    setInputMessage(action);
-    setTimeout(() => {
-      if (action === inputMessage) {
-        sendMessage();
+    if (action.includes("Find me job opportunities")) {
+      // Special handling for Find Jobs action
+      handleFindJobsAction();
+    } else {
+      // Regular quick action handling
+      setInputMessage(action);
+      setTimeout(() => {
+        if (action === inputMessage) {
+          sendMessage();
+        }
+      }, 100);
+    }
+  };
+
+  const handleFindJobsAction = () => {
+    // Extract job requirements from current conversation
+    const jobRequirements = extractJobRequirementsFromChat();
+    
+    // Store the requirements in localStorage or context for the job board
+    localStorage.setItem('chatbotJobRequirements', JSON.stringify(jobRequirements));
+    
+    // Navigate to the job board page
+    window.location.href = '/jobs';
+  };
+
+  const extractJobRequirementsFromChat = () => {
+    // Extract job requirements from the current conversation
+    const requirements = {
+      keywords: '',
+      location: '',
+      required_skills: [],
+      experience_level: '',
+      job_type: 'Full-time',
+      industry: '',
+      remote_preference: '',
+      budget_min: null,
+      budget_max: null
+    };
+
+    // Analyze the conversation messages to extract requirements
+    messages.forEach(message => {
+      if (message.type === 'user') {
+        const text = message.content.toLowerCase();
+        
+        // Extract location mentions
+        if (text.includes('in ') || text.includes('at ')) {
+          const locationMatch = text.match(/(?:in|at)\s+([a-zA-Z\s,]+?)(?:\s|$|\.)/);
+          if (locationMatch) {
+            requirements.location = locationMatch[1].trim();
+          }
+        }
+        
+        // Extract skills
+        const skills = ['react', 'python', 'javascript', 'java', 'node.js', 'aws', 'docker', 'kubernetes', 'machine learning', 'ai', 'blockchain'];
+        skills.forEach(skill => {
+          if (text.includes(skill)) {
+            requirements.required_skills.push(skill);
+          }
+        });
+        
+        // Extract experience level
+        if (text.includes('junior') || text.includes('entry')) {
+          requirements.experience_level = 'Junior';
+        } else if (text.includes('senior') || text.includes('lead')) {
+          requirements.experience_level = 'Senior';
+        } else if (text.includes('mid') || text.includes('intermediate')) {
+          requirements.experience_level = 'Mid-level';
+        }
+        
+        // Extract industry
+        if (text.includes('blockchain')) {
+          requirements.industry = 'Blockchain';
+        } else if (text.includes('ai') || text.includes('machine learning')) {
+          requirements.industry = 'AI/ML';
+        } else if (text.includes('web') || text.includes('frontend') || text.includes('backend')) {
+          requirements.industry = 'Web Development';
+        }
+        
+        // Extract remote preference
+        if (text.includes('remote')) {
+          requirements.remote_preference = 'Remote';
+        } else if (text.includes('hybrid')) {
+          requirements.remote_preference = 'Hybrid';
+        }
+        
+        // Extract budget information
+        const budgetMatch = text.match(/(?:budget|salary|pay)\s*(\d+(?:,\d+)*)\s*(?:usd|dollar|dollars)?\s*[-–—]\s*(\d+(?:,\d+)*)\s*(?:usd|dollar|dollars)?/i);
+        if (budgetMatch) {
+          requirements.budget_min = parseInt(budgetMatch[1].replace(/,/g, ''));
+          requirements.budget_max = parseInt(budgetMatch[2].replace(/,/g, ''));
+        }
+        
+        // Extract experience years
+        const experienceMatch = text.match(/(\d+)\s*(?:years?|yrs?)\s*experience/i);
+        if (experienceMatch) {
+          const years = parseInt(experienceMatch[1]);
+          if (years <= 2) {
+            requirements.experience_level = 'Junior';
+          } else if (years <= 5) {
+            requirements.experience_level = 'Mid-level';
+          } else {
+            requirements.experience_level = 'Senior';
+          }
+        }
       }
-    }, 100);
+    });
+
+    // Set default keywords based on extracted skills
+    if (requirements.required_skills.length > 0) {
+      requirements.keywords = `${requirements.required_skills[0]} Developer`;
+    } else {
+      requirements.keywords = 'Software Developer';
+    }
+
+    return requirements;
   };
 
   const toggleChat = () => {
