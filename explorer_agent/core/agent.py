@@ -12,6 +12,11 @@ from datetime import datetime
 from core.config import get_settings
 from scrapers.base_scraper import BaseScraper
 from scrapers.linkedin_scraper import LinkedInScraper
+from scrapers.upwork_scraper import UpworkScraper
+from scrapers.fiverr_scraper import FiverrScraper
+from scrapers.stackoverflow_scraper import StackOverflowScraper
+from scrapers.remoteco_scraper import RemoteCoScraper
+from scrapers.weworkremotely_scraper import WeWorkRemotelyScraper
 from scrapers.indeed_scraper import IndeedScraper
 from scrapers.glassdoor_scraper import GlassdoorScraper
 from processors.job_processor import JobProcessor
@@ -51,15 +56,19 @@ class ExplorerAgent:
         if self.settings.enable_linkedin:
             self.scrapers.append(LinkedInScraper())
             
+        # Use multiple job platforms for better coverage
         if self.settings.enable_indeed:
-            self.scrapers.append(IndeedScraper())
+            self.scrapers.append(UpworkScraper())
             
         if self.settings.enable_glassdoor:
-            self.scrapers.append(GlassdoorScraper())
+            self.scrapers.append(FiverrScraper())
             
         if self.settings.enable_stackoverflow:
-            # Add StackOverflow scraper when implemented
-            pass
+            self.scrapers.append(StackOverflowScraper())
+            
+                # Add remote job platforms
+        self.scrapers.append(RemoteCoScraper())
+        self.scrapers.append(WeWorkRemotelyScraper())
             
         logger.info(f"Initialized {len(self.scrapers)} scrapers")
         
@@ -133,6 +142,10 @@ class ExplorerAgent:
                 total_jobs += 1
                 logger.debug(f"Processing job from {scraper.name}: {job_data.get('title', 'No title')}")
                 
+                # Debug: Log the actual job data structure
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"Job data structure from {scraper.name}: {job_data}")
+                
                 # Process the job data
                 processed_job = await self.processor.process_job(job_data)
                 
@@ -175,6 +188,20 @@ class ExplorerAgent:
                 "scraper": scraper.name,
                 "error": str(e)
             })
+            
+    def _get_scraper_delay(self, scraper_name: str) -> float:
+        """Get appropriate delay for each scraper to avoid rate limiting"""
+        delays = {
+            "LinkedInScraper": 3.0,    # LinkedIn is strict, use longer delays
+            "UpworkScraper": 2.0,      # Upwork is moderate
+            "FiverrScraper": 2.0,      # Fiverr is moderate
+            "StackOverflowScraper": 2.0, # Stack Overflow is moderate
+            "RemoteCoScraper": 1.5,    # Remote.co is less strict
+            "WeWorkRemotelyScraper": 1.5, # WeWorkRemotely is less strict
+            "IndeedScraper": 1.5,      # Indeed is less strict
+            "GlassdoorScraper": 1.5    # Glassdoor is less strict
+        }
+        return delays.get(scraper_name, 2.0)  # Default to 2 seconds
             
     async def stop_exploration(self, search_id: str):
         """Stop a specific job exploration"""

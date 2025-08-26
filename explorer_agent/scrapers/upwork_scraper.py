@@ -1,12 +1,14 @@
 """
-LinkedIn job scraper
+Upwork job scraper
 
-Scrapes job listings from LinkedIn Jobs
+Scrapes job listings from Upwork's search results
 """
 
 import asyncio
 import logging
+import re
 from typing import Dict, List, Optional, AsyncGenerator, Any
+from datetime import datetime
 import aiohttp
 from bs4 import BeautifulSoup
 
@@ -14,35 +16,33 @@ from .base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
 
-class LinkedInScraper(BaseScraper):
-    """LinkedIn Jobs scraper"""
+class UpworkScraper(BaseScraper):
+    """Upwork Jobs scraper"""
     
     def __init__(self):
         super().__init__()
-        self.name = "LinkedIn"
-        self.base_url = "https://www.linkedin.com/jobs"
+        self.name = "Upwork"
+        self.base_url = "https://www.upwork.com"
         self.session = None
+        self.is_initialized = False
         
     async def initialize(self):
-        """Initialize the LinkedIn scraper"""
-        if self.is_initialized:
-            return
-            
-        # Create aiohttp session with headers
+        """Initialize the Upwork scraper"""
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip, deflate",
-            "Connection": "keep-alive",
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
         }
         
         self.session = aiohttp.ClientSession(headers=headers)
         self.is_initialized = True
-        logger.info("LinkedIn scraper initialized")
+        logger.info("Upwork scraper initialized")
         
     async def scrape_jobs(self, search_params: Optional[Dict] = None) -> AsyncGenerator[Dict[str, Any], None]:
-        """Scrape jobs from LinkedIn based on search parameters"""
+        """Scrape jobs from Upwork based on search parameters"""
         if not self.is_initialized:
             await self.initialize()
             
@@ -51,13 +51,13 @@ class LinkedInScraper(BaseScraper):
         try:
             # Build search URL
             search_url = self._build_search_url(search_params)
-            logger.info(f"Searching LinkedIn jobs: {search_url}")
+            logger.info(f"Searching Upwork jobs: {search_url}")
             logger.debug(f"Search parameters: {search_params}")
             
             # Get search results page
             html_content = await self._make_request(search_url)
             if not html_content:
-                logger.error("Failed to get LinkedIn search results")
+                logger.error("Failed to get Upwork search results")
                 return
                 
             # Debug: Log HTML content info
@@ -67,7 +67,7 @@ class LinkedInScraper(BaseScraper):
                 
             # Parse job listings
             job_listings = await self._parse_job_listings(html_content)
-            logger.info(f"Found {len(job_listings)} job listings on LinkedIn")
+            logger.info(f"Found {len(job_listings)} job listings on Upwork")
             
             # Yield each job
             for job_data in job_listings:
@@ -91,14 +91,14 @@ class LinkedInScraper(BaseScraper):
                 else:
                     logger.debug(f"Job object creation failed for job data: {job_data.get('title', 'Unknown')}")
                 
-                # Rate limiting
-                await asyncio.sleep(1)
+                # Rate limiting - be gentle with Upwork
+                await asyncio.sleep(2)
                 
         except Exception as e:
-            logger.error(f"Error scraping LinkedIn jobs: {e}")
+            logger.error(f"Error scraping Upwork jobs: {e}")
             
     async def get_job_details(self, job_url: str) -> Dict[str, Any]:
-        """Get detailed information for a specific LinkedIn job"""
+        """Get detailed information for a specific Upwork job"""
         if not self.is_initialized:
             await self.initialize()
             
@@ -127,35 +127,49 @@ class LinkedInScraper(BaseScraper):
             return self._create_job_object(job_details)
             
         except Exception as e:
-            logger.error(f"Error getting LinkedIn job details: {e}")
+            logger.error(f"Error getting Upwork job details: {e}")
             return {}
             
     def _build_search_url(self, search_params: Dict[str, Any]) -> str:
-        """Build LinkedIn search URL from parameters"""
-        base = f"{self.base_url}/search"
+        """Build Upwork search URL from parameters"""
+        base = f"{self.base_url}/nx/search/jobs"
         params = []
         
         if search_params.get("keywords"):
-            params.append(f"keywords={search_params['keywords']}")
+            params.append(f"q={search_params['keywords']}")
             
         if search_params.get("location"):
             params.append(f"location={search_params['location']}")
             
         if search_params.get("experience_level"):
-            params.append(f"experience={search_params['experience_level']}")
+            # Map experience levels to Upwork's format
+            exp_mapping = {
+                "entry": "entry",
+                "junior": "entry", 
+                "mid-level": "intermediate",
+                "senior": "expert",
+                "lead": "expert"
+            }
+            exp = exp_mapping.get(search_params['experience_level'].lower(), "entry")
+            params.append(f"expertise={exp}")
             
         if search_params.get("job_type"):
-            params.append(f"jobType={search_params['job_type']}")
-            
-        if search_params.get("page") and search_params["page"] > 1:
-            params.append(f"start={search_params['page'] * 25}")
+            # Map job types to Upwork's format
+            type_mapping = {
+                "full-time": "hourly",
+                "part-time": "hourly",
+                "contract": "fixed-price",
+                "freelance": "hourly"
+            }
+            job_type = type_mapping.get(search_params['job_type'].lower(), "hourly")
+            params.append(f"contract={job_type}")
             
         if params:
             return f"{base}?{'&'.join(params)}"
         return base
         
     async def _make_request(self, url: str) -> Optional[str]:
-        """Make HTTP request to LinkedIn"""
+        """Make HTTP request to Upwork"""
         try:
             logger.debug(f"Making request to: {url}")
             async with self.session.get(url) as response:
@@ -167,7 +181,7 @@ class LinkedInScraper(BaseScraper):
                     logger.debug(f"Successfully received {len(content)} characters")
                     return content
                 else:
-                    logger.warning(f"LinkedIn request failed with status {response.status}")
+                    logger.warning(f"Upwork request failed with status {response.status}")
                     # Try to get error content
                     try:
                         error_content = await response.text()
@@ -176,31 +190,28 @@ class LinkedInScraper(BaseScraper):
                         pass
                     return None
         except Exception as e:
-            logger.error(f"LinkedIn request error: {e}")
+            logger.error(f"Upwork request error: {e}")
             return None
             
-    async def _parse_job_listings(self, html_content: str, search_params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
-        """Parse job listings from LinkedIn HTML"""
+    async def _parse_job_listings(self, html_content: str) -> List[Dict[str, Any]]:
+        """Parse job listings from Upwork HTML"""
         jobs = []
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Find job cards (this selector may need updates based on LinkedIn's current structure)
-            job_cards = soup.find_all('div', class_='base-card')
-            logger.debug(f"Found {len(job_cards)} job cards on LinkedIn page using 'base-card' selector")
+            # Find job cards - Upwork uses different selectors
+            job_cards = soup.find_all('div', class_='up-card-section')
+            logger.debug(f"Found {len(job_cards)} job cards on Upwork page using 'up-card-section' selector")
             
-            # Try alternative selectors if base-card not found
+            # Try alternative selectors if up-card-section not found
             if not job_cards:
                 alternative_selectors = [
-                    'div[class*="job-card"]',
-                    'div[class*="job-search-card"]',
-                    'li[class*="job"]',
-                    'div[class*="result-card"]',
+                    'div[class*="job-tile"]',
                     'div[class*="search-result"]',
-                    'div[class*="job-result"]',
+                    'div[class*="job-card"]',
                     'div[class*="listing"]',
-                    'div[class*="card"]',
-                    'li[class*="search-result"]',
+                    'div[class*="result"]',
+                    'li[class*="job"]',
                     'article[class*="job"]'
                 ]
                 for selector in alternative_selectors:
@@ -228,27 +239,25 @@ class LinkedInScraper(BaseScraper):
                     continue
                     
         except Exception as e:
-            logger.error(f"Error parsing LinkedIn job listings: {e}")
+            logger.error(f"Error parsing Upwork job listings: {e}")
             
-        logger.info(f"Successfully parsed {len(jobs)} jobs from LinkedIn")
+        logger.info(f"Successfully parsed {len(jobs)} jobs from Upwork")
         return jobs
         
     def _extract_job_from_card(self, card, search_params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
-        """Extract job information from a single job card"""
+        """Extract job information from a single Upwork job card"""
         try:
             # Extract job title - try multiple selectors
             title = ""
             title_selectors = [
-                ('h3', 'base-search-card__title'),
-                ('h2', 'base-search-card__title'),
-                ('h3', 'job-search-card__title'),
-                ('h2', 'job-search-card__title'),
-                ('h3', 'search-result__title'),
-                ('h2', 'search-result__title'),
-                ('h3', 'job-result__title'),
-                ('h2', 'job-result__title'),
-                ('h3', 'listing__title'),
-                ('h2', 'listing__title')
+                ('h4', 'job-title'),
+                ('h3', 'job-title'),
+                ('h2', 'job-title'),
+                ('h4', 'title'),
+                ('h3', 'title'),
+                ('h2', 'title'),
+                ('a', 'job-title'),
+                ('span', 'job-title')
             ]
             
             for tag, class_name in title_selectors:
@@ -284,19 +293,15 @@ class LinkedInScraper(BaseScraper):
                 logger.warning(f"No title found for job card. Available elements: {[elem.name for elem in card.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])]}")
                 return None
             
-            # Extract company name - try multiple selectors
+            # Extract company/client name
             company = ""
             company_selectors = [
-                ('h4', 'base-search-card__subtitle'),
-                ('h3', 'base-search-card__subtitle'),
-                ('h4', 'job-search-card__subtitle'),
-                ('h3', 'job-search-card__subtitle'),
-                ('h4', 'search-result__subtitle'),
-                ('h3', 'search-result__subtitle'),
-                ('h4', 'job-result__subtitle'),
-                ('h3', 'job-result__subtitle'),
-                ('span', 'job-search-card__subtitle'),
-                ('div', 'job-search-card__subtitle')
+                ('span', 'client-name'),
+                ('div', 'client-name'),
+                ('a', 'client-name'),
+                ('span', 'company'),
+                ('div', 'company'),
+                ('a', 'company')
             ]
             
             for tag, class_name in company_selectors:
@@ -310,43 +315,42 @@ class LinkedInScraper(BaseScraper):
             if not company and search_params:
                 keywords = search_params.get('keywords', '')
                 if keywords:
-                    company = f"{keywords.replace('+', ' ').replace('-', ' ').strip().title()} Company"
+                    company = f"{keywords.replace('+', ' ').replace('-', ' ').strip().title()} Client"
                     logger.debug(f"Generated fallback company: {company}")
             
             if not company:
-                company = "Company"
+                company = "Client"
                 logger.debug("Using default company name")
             
             # Extract location
-            location_elem = card.find('span', class_='job-search-card__location')
-            location = self._extract_text(location_elem)
+            location = ""
+            location_elem = card.find('span', class_='location')
+            if location_elem:
+                location = self._extract_text(location_elem)
             
             # Extract job URL
-            link_elem = card.find('a', class_='base-card__full-link')
-            job_url = self._extract_attribute(link_elem, 'href', '')
+            job_url = ""
+            link_elem = card.find('a', href=True)
+            if link_elem:
+                job_url = link_elem.get('href')
+                if not job_url.startswith('http'):
+                    job_url = self.base_url + job_url
+            
+            # Extract budget/salary
+            salary = ""
+            budget_elem = card.find('span', class_='budget')
+            if budget_elem:
+                salary = self._extract_text(budget_elem)
             
             # Extract posted date
+            posted_date = ""
             date_elem = card.find('time')
-            posted_date = self._extract_attribute(date_elem, 'datetime', '')
+            if date_elem:
+                posted_date = self._extract_attribute(date_elem, 'datetime', '')
             
             # Debug: Log the final extracted data
             logger.debug(f"Final extracted data: title='{title}', company='{company}', location='{location}', url='{job_url}'")
             
-            # Validation is disabled for now - accept all jobs
-            # if not title or not company or not job_url:
-            #     logger.debug(f"Rejecting LinkedIn job: Missing essential data")
-            #     return None
-            #     
-            # # Check for obvious placeholder or error content
-            # if any(placeholder in title.lower() for placeholder in ["test", "sample", "example", "placeholder", "error"]):
-            #     logger.debug(f"Rejecting LinkedIn job: Placeholder title detected")
-            #     return None
-            #     
-            # # Check for very short titles (likely incomplete)
-            # if len(title) < 3:  # Reduced from 5 to 3
-            #     logger.debug(f"Rejecting LinkedIn job: Title too short")
-            #     return None
-                
             return {
                 "id": job_url.split('/')[-1] if job_url else "",
                 "title": title,
@@ -354,19 +358,20 @@ class LinkedInScraper(BaseScraper):
                 "location": location,
                 "description": "",  # Will be filled in get_job_details
                 "requirements": [],
-                "salary": "",
-                "job_type": "Full-time",
+                "salary": salary,
+                "job_type": "Contract",  # Upwork is primarily contract/freelance
                 "experience_level": "Mid-level",
                 "posted_date": posted_date,
                 "application_url": job_url,
-                "original_url": job_url,  # Original LinkedIn job posting URL
+                "original_url": job_url,
                 "full_description": "",  # Will be filled in get_job_details
                 "extracted_skills": [],  # Will be populated by processor
                 "raw_data": {
                     "title": title,
                     "company": company,
                     "location": location,
-                    "url": job_url
+                    "url": job_url,
+                    "salary": salary
                 }
             }
             
@@ -375,19 +380,18 @@ class LinkedInScraper(BaseScraper):
             return None
             
     async def _parse_job_details(self, html_content: str) -> Dict[str, Any]:
-        """Parse detailed job information from LinkedIn job page"""
+        """Parse detailed job information from Upwork job page"""
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Try multiple selectors for job description (LinkedIn changes their HTML structure)
+            # Try multiple selectors for job description
             description = ""
             description_selectors = [
-                'div[class*="show-more-less-html"]',
-                'div[class*="description__text"]',
                 'div[class*="job-description"]',
-                'div[class*="job-description__content"]',
+                'div[class*="description"]',
+                'div[class*="content"]',
                 'section[class*="description"]',
-                'div[class*="content"]'
+                'div[class*="job-details"]'
             ]
             
             for selector in description_selectors:
@@ -398,21 +402,10 @@ class LinkedInScraper(BaseScraper):
                         logger.debug(f"Found description using selector: {selector}")
                         break
             
-            # If no description found, try to get any text content
-            if not description or len(description.strip()) < 10:
-                # Look for any div with substantial text content
-                for div in soup.find_all('div'):
-                    text = self._extract_text(div)
-                    if text and len(text.strip()) > 50:  # Look for substantial content
-                        description = text
-                        logger.debug("Found description from general div content")
-                        break
-            
             # Extract requirements (this is a simplified approach)
             requirements = []
-            requirements_elem = soup.find('div', class_='description__text')
+            requirements_elem = soup.find('div', class_='job-requirements')
             if requirements_elem:
-                # Look for common requirement patterns
                 text = self._extract_text(requirements_elem)
                 # Simple keyword-based requirement extraction
                 requirement_keywords = ['experience', 'skills', 'requirements', 'qualifications']
@@ -421,34 +414,22 @@ class LinkedInScraper(BaseScraper):
                         requirements.append(f"See {keyword} in description")
                         break
                         
-            # Description validation is disabled for now - accept all descriptions
-            # if not description or len(description.strip()) < 20:  # Reduced from 50 to 20
-            #     logger.debug(f"Rejecting LinkedIn job: Description too short or empty")
-            #     return {}
-            #     
-            # # Check for error messages or blocked content
-            # error_indicators = ["access denied", "content blocked", "page not available", "error occurred"]
-            # if any(error in description.lower() for error in error_indicators):
-            #     logger.debug(f"Rejecting LinkedIn job: Error content in description")
-            #     return {}
-                
             return {
                 "description": description or "Description not available",
-                "full_description": description or "Description not available",  # Store the complete description
+                "full_description": description or "Description not available",
                 "requirements": requirements,
-                "salary": "",  # LinkedIn typically doesn't show salary in job descriptions
-                "job_type": "",
+                "salary": "",  # Already extracted from card
+                "job_type": "Contract",
                 "experience_level": ""
             }
             
         except Exception as e:
-            logger.error(f"Error parsing LinkedIn job details: {e}")
+            logger.error(f"Error parsing Upwork job details: {e}")
             return {}
             
     async def cleanup(self):
-        """Cleanup LinkedIn scraper resources"""
+        """Cleanup Upwork scraper resources"""
         if self.session:
             await self.session.close()
         self.is_initialized = False
-        logger.info("LinkedIn scraper cleaned up")
-
+        logger.info("Upwork scraper cleaned up")
