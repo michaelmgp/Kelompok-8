@@ -65,6 +65,17 @@ target/
 icp_contracts/.dfx/
 icp_contracts/.env
 
+# ===========================================
+# Explorer Agent
+# ===========================================
+explorer_agent/.env
+explorer_agent/*.log
+explorer_agent/__pycache__/
+explorer_agent/**/__pycache__/
+explorer_agent/**/*.pyc
+explorer_agent/.pytest_cache/
+explorer_agent/explorer_agent.db
+
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -138,5 +149,3 @@ logs/
 .cache/
 *.tmp
 *.temp
-.env
-.history/

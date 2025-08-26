@@ -26,6 +26,7 @@ export default function FloatingAIAssistant() {
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnectionChecking, setIsConnectionChecking] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'disconnected' | 'backend-only'>('checking');
 
   // Check API connection on component mount
@@ -34,6 +35,7 @@ export default function FloatingAIAssistant() {
   }, []);
 
   const checkAPIConnection = async () => {
+    setIsConnectionChecking(true);
     setConnectionStatus('checking');
     try {
       const connected = await apiClient.testConnection();
@@ -57,11 +59,13 @@ export default function FloatingAIAssistant() {
         setConnectionStatus('disconnected');
         setIsConnected(false);
       }
+    } finally {
+      setIsConnectionChecking(false);
     }
   };
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isTyping || !isConnected) return;
+    if (!inputMessage.trim() || isTyping || isConnectionChecking || !isConnected) return;
 
     const userMessage: Message = {
       id: messages.length + 1,
@@ -97,7 +101,7 @@ export default function FloatingAIAssistant() {
       const errorMessage: Message = {
         id: messages.length + 2,
         type: 'ai',
-        content: "I'm sorry, I'm having trouble connecting to my AI services right now. Please check if the backend server is running on port 8081, or try again later.",
+        content: "I'm sorry, I'm having trouble connecting to my AI services right now or try again later.",
         timestamp: new Date()
       };
       
@@ -108,12 +112,121 @@ export default function FloatingAIAssistant() {
   };
 
   const handleQuickAction = (action: string) => {
-    setInputMessage(action);
-    setTimeout(() => {
-      if (action === inputMessage) {
-        sendMessage();
+    if (action.includes("Find me job opportunities")) {
+      // Special handling for Find Jobs action
+      handleFindJobsAction();
+    } else {
+      // Regular quick action handling
+      setInputMessage(action);
+      setTimeout(() => {
+        if (action === inputMessage) {
+          sendMessage();
+        }
+      }, 100);
+    }
+  };
+
+  const handleFindJobsAction = () => {
+    // Extract job requirements from current conversation
+    const jobRequirements = extractJobRequirementsFromChat();
+    
+    // Store the requirements in localStorage or context for the job board
+    localStorage.setItem('chatbotJobRequirements', JSON.stringify(jobRequirements));
+    
+    // Navigate to the job board page
+    window.location.href = '/jobs';
+  };
+
+  const extractJobRequirementsFromChat = () => {
+    // Extract job requirements from the current conversation
+    const requirements = {
+      keywords: '',
+      location: '',
+      required_skills: [],
+      experience_level: '',
+      job_type: 'Full-time',
+      industry: '',
+      remote_preference: '',
+      budget_min: null,
+      budget_max: null
+    };
+
+    // Analyze the conversation messages to extract requirements
+    messages.forEach(message => {
+      if (message.type === 'user') {
+        const text = message.content.toLowerCase();
+        
+        // Extract location mentions
+        if (text.includes('in ') || text.includes('at ')) {
+          const locationMatch = text.match(/(?:in|at)\s+([a-zA-Z\s,]+?)(?:\s|$|\.)/);
+          if (locationMatch) {
+            requirements.location = locationMatch[1].trim();
+          }
+        }
+        
+        // Extract skills
+        const skills = ['react', 'python', 'javascript', 'java', 'node.js', 'aws', 'docker', 'kubernetes', 'machine learning', 'ai', 'blockchain'];
+        skills.forEach(skill => {
+          if (text.includes(skill)) {
+            requirements.required_skills.push(skill);
+          }
+        });
+        
+        // Extract experience level
+        if (text.includes('junior') || text.includes('entry')) {
+          requirements.experience_level = 'Junior';
+        } else if (text.includes('senior') || text.includes('lead')) {
+          requirements.experience_level = 'Senior';
+        } else if (text.includes('mid') || text.includes('intermediate')) {
+          requirements.experience_level = 'Mid-level';
+        }
+        
+        // Extract industry
+        if (text.includes('blockchain')) {
+          requirements.industry = 'Blockchain';
+        } else if (text.includes('ai') || text.includes('machine learning')) {
+          requirements.industry = 'AI/ML';
+        } else if (text.includes('web') || text.includes('frontend') || text.includes('backend')) {
+          requirements.industry = 'Web Development';
+        }
+        
+        // Extract remote preference
+        if (text.includes('remote')) {
+          requirements.remote_preference = 'Remote';
+        } else if (text.includes('hybrid')) {
+          requirements.remote_preference = 'Hybrid';
+        }
+        
+        // Extract budget information
+        const budgetMatch = text.match(/(?:budget|salary|pay)\s*(\d+(?:,\d+)*)\s*(?:usd|dollar|dollars)?\s*[-–—]\s*(\d+(?:,\d+)*)\s*(?:usd|dollar|dollars)?/i);
+        if (budgetMatch) {
+          requirements.budget_min = parseInt(budgetMatch[1].replace(/,/g, ''));
+          requirements.budget_max = parseInt(budgetMatch[2].replace(/,/g, ''));
+        }
+        
+        // Extract experience years
+        const experienceMatch = text.match(/(\d+)\s*(?:years?|yrs?)\s*experience/i);
+        if (experienceMatch) {
+          const years = parseInt(experienceMatch[1]);
+          if (years <= 2) {
+            requirements.experience_level = 'Junior';
+          } else if (years <= 5) {
+            requirements.experience_level = 'Mid-level';
+          } else {
+            requirements.experience_level = 'Senior';
+          }
+        }
       }
-    }, 100);
+    });
+
+    // Set default keywords based on extracted skills
+    if (requirements.required_skills.length > 0) {
+      requirements.keywords = `${requirements.required_skills[0]} Developer`;
+    } else {
+      requirements.keywords = 'Software Developer';
+    }
+
+    return requirements;
   };
 
   const toggleChat = () => {
@@ -180,6 +293,11 @@ export default function FloatingAIAssistant() {
         <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
           {getConnectionStatusText()}
         </div>
+        
+        {/* Loading indicator when checking connection */}
+        {isConnectionChecking && (
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-yellow-500 border-2 border-white animate-pulse"></div>
+        )}
       </div>
     );
   }
@@ -245,7 +363,7 @@ export default function FloatingAIAssistant() {
               
               {connectionStatus === 'disconnected' && (
                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-                  ❌ Cannot connect to backend. Make sure your AI chatbot service is running on port 8081.
+                  ❌ Cannot connect to backend. waiting for the service to start.
                 </div>
               )}
             </div>
@@ -311,18 +429,21 @@ export default function FloatingAIAssistant() {
 
             {/* Quick Actions */}
             <div className="px-3 pb-2">
+              <div className="text-xs text-gray-600 mb-2">
+                💡 Quick Actions:
+              </div>
               <div className="flex space-x-2 mb-2">
                 <button
                   onClick={() => handleQuickAction("Find me job opportunities in blockchain and AI")}
                   className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 transition-colors"
-                  disabled={!isConnected}
+                  disabled={!isConnected || isConnectionChecking}
                 >
-                  🔍 Find Jobs
+                  🔍 Find Jobs (Auto-start)
                 </button>
                 <button
                   onClick={() => handleQuickAction("Help me optimize my profile")}
                   className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 transition-colors"
-                  disabled={!isConnected}
+                  disabled={!isConnected || isConnectionChecking}
                 >
                   ⚡ Optimize
                 </button>
@@ -339,11 +460,11 @@ export default function FloatingAIAssistant() {
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                   placeholder="Ask about jobs, salary, profile..."
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={!isConnected}
+                  disabled={!isConnected || isConnectionChecking}
                 />
                 <button
                   onClick={sendMessage}
-                  disabled={!inputMessage.trim() || isTyping || !isConnected}
+                  disabled={!inputMessage.trim() || isTyping || !isConnected || isConnectionChecking}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Send className="w-4 h-4" />

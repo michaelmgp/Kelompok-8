@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+// ...existing code...
 import { Button } from '@/components/ui/button';
 import { connectPlug, connectInternetIdentity, getMyProfile, updateProfile, createIdentityActor, setPasswordOnCanister } from '@/lib/icp';
 import { AuthClient } from '@dfinity/auth-client';
@@ -117,7 +118,7 @@ export default function TopNavigation() {
   }
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-60" data-testid="top-navigation">
+  <nav className="fixed top-0 left-0 right-0 bg-white shadow-sm border-b border-gray-200 z-60" data-testid="top-navigation">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -153,97 +154,97 @@ export default function TopNavigation() {
           </div>
 
           {/* Login/Profile */}
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              {/* If authenticated, show Dashboard link instead of Login */}
-              {isAuthenticated ? (
-                <Link href="/dashboard" data-testid="button-dashboard" className="inline-flex items-center space-x-2 px-3 py-1 border rounded hover:bg-gray-50">
-                  <span className="inline-flex w-6 h-6 rounded-full bg-gray-200 items-center justify-center text-sm text-gray-700">{(() => { const parts = (navName || 'U').split(' ').filter(Boolean); if (parts.length <= 1) return (parts[0]||'U').slice(0,1).toUpperCase(); return (parts[0].slice(0,1)+parts[1].slice(0,1)).toUpperCase(); })()}</span>
-                  <span>{navUsername}</span>
-                </Link>
-              ) : (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    // Open the login modal only; II flow is started from the modal's II button.
-                    console.debug('[Login] open modal');
-                    setIsLoginOpen(!isLoginOpen);
-                  }}
-                  className="flex items-center space-x-2"
-                  data-testid="button-login"
-                  data-tid="login-button"
-                >
-                  {/* simplified avatar to avoid typing conflicts with Radix Avatar props */}
-                  <span className="inline-flex w-6 h-6 rounded-full bg-gray-200 items-center justify-center text-sm text-gray-700">{(() => { const parts = (navName || 'U').split(' ').filter(Boolean); if (parts.length <= 1) return (parts[0]||'U').slice(0,1).toUpperCase(); return (parts[0].slice(0,1)+parts[1].slice(0,1)).toUpperCase(); })()}</span>
-                  <span>Login</span>
-                </Button>
-              )}
+                  <div className="flex items-center space-x-4">
+                    <div className="relative">
+                      {/* If authenticated, show Dashboard link instead of Login */}
+                      {isAuthenticated ? (
+                        <Link href="/dashboard" data-testid="button-dashboard" className="inline-flex items-center space-x-2 px-3 py-1 border rounded hover:bg-gray-50">
+                          <span className="inline-flex w-6 h-6 rounded-full bg-gray-200 items-center justify-center text-sm text-gray-700">{(() => { const parts = (navName || 'U').split(' ').filter(Boolean); if (parts.length <= 1) return (parts[0]||'U').slice(0,1).toUpperCase(); return (parts[0].slice(0,1)+parts[1].slice(0,1)).toUpperCase(); })()}</span>
+                          <span>{navUsername}</span>
+                        </Link>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            // Open the login modal only; II flow is started from the modal's II button.
+                            console.debug('[Login] open modal');
+                            setIsLoginOpen(!isLoginOpen);
+                          }}
+                          className="flex items-center space-x-2"
+                          data-testid="button-login"
+                          data-tid="login-button"
+                        >
+                          {/* simplified avatar to avoid typing conflicts with Radix Avatar props */}
+                          <span className="inline-flex w-6 h-6 rounded-full bg-gray-200 items-center justify-center text-sm text-gray-700">{(() => { const parts = (navName || 'U').split(' ').filter(Boolean); if (parts.length <= 1) return (parts[0]||'U').slice(0,1).toUpperCase(); return (parts[0].slice(0,1)+parts[1].slice(0,1)).toUpperCase(); })()}</span>
+                          <span>Login</span>
+                        </Button>
+                      )}
               
               {/* Login Dropdown */}
-              {isLoginOpen && (
+                {isLoginOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-70 pointer-events-auto" data-testid="login-dropdown">
-                  <h3 className="text-lg font-semibold mb-4">Sign In</h3>
-                  <div className="space-y-3">
-                    <p className="text-sm text-gray-600">Sign in using Internet Identity (ICP).</p>
-                    <div className="space-y-2">
-                      <Button className="w-full" data-testid="button-ii-login-mainnet" onClick={async () => {
-                        try {
-                          const authClient = await AuthClient.create();
-                          await authClient.login({
-                            identityProvider: 'https://identity.ic0.app',
-                            onSuccess: async () => {
-                              try { localStorage.setItem('cv:isAuthenticated', '1'); } catch (e) {}
-                              setIsAuthenticated(true);
-                              try { window.location.href = '/dashboard'; } catch (e) { window.location.reload(); }
-                            }
-                          });
-                        } catch (err) {
-                          console.debug('AuthClient.login failed, fallback to opening hosted II', err);
-                          try { window.open('https://identity.ic0.app/#authorize', 'icp_auth', 'width=600,height=800'); } catch (e) { window.open('https://identity.ic0.app/#authorize', '_blank'); }
-                        }
-                      }}>
-                        Login (Mainnet II)
-                      </Button>
-
-                      <Button className="w-full" data-testid="button-ii-login-local" onClick={async () => {
-                        try {
-                          const authClient = await AuthClient.create();
-                          // Build a full identity provider URL. Prefer configured II canister (NEXT_PUBLIC_II_CANISTER_ID)
-                          // falling back to the common localhost:8000 host.
-                          const iiCanister = (process.env.NEXT_PUBLIC_II_CANISTER_ID || '').trim();
-                          const appCanister = (process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '').trim();
-                          const proto = window.location.protocol || 'http:';
-                          const iiHost = iiCanister ? `${proto}//${iiCanister}.localhost:8000` : `${proto}//localhost:8000`;
-                          await authClient.login({
-                            identityProvider: iiHost,
-                            onSuccess: async () => {
-                              try { localStorage.setItem('cv:isAuthenticated', '1'); } catch (e) {}
-                              setIsAuthenticated(true);
-                              try { window.location.href = '/dashboard'; } catch (e) { window.location.reload(); }
-                            }
-                          });
-                        } catch (err) {
-                          console.debug('AuthClient.login failed, fallback to opening hosted II', err);
+                    <h3 className="text-lg font-semibold mb-4">Sign In</h3>
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-600">Sign in using Internet Identity (ICP).</p>
+                      <div className="space-y-2">
+                        <Button className="w-full" data-testid="button-ii-login-mainnet" onClick={async () => {
                           try {
+                            const authClient = await AuthClient.create();
+                            await authClient.login({
+                              identityProvider: 'https://identity.ic0.app',
+                              onSuccess: async () => {
+                                try { localStorage.setItem('cv:isAuthenticated', '1'); } catch (e) {}
+                                setIsAuthenticated(true);
+                                try { window.location.href = '/dashboard'; } catch (e) { window.location.reload(); }
+                              }
+                            });
+                          } catch (err) {
+                            console.debug('AuthClient.login failed, fallback to opening hosted II', err);
+                            try { window.open('https://identity.ic0.app/#authorize', 'icp_auth', 'width=600,height=800'); } catch (e) { window.open('https://identity.ic0.app/#authorize', '_blank'); }
+                          }
+                        }}>
+                          Login (Mainnet II)
+                        </Button>
+
+                        <Button className="w-full" data-testid="button-ii-login-local" onClick={async () => {
+                          try {
+                            const authClient = await AuthClient.create();
+                            // Build a full identity provider URL. Prefer configured II canister (NEXT_PUBLIC_II_CANISTER_ID)
+                            // falling back to the common localhost:8000 host.
                             const iiCanister = (process.env.NEXT_PUBLIC_II_CANISTER_ID || '').trim();
                             const appCanister = (process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '').trim();
                             const proto = window.location.protocol || 'http:';
                             const iiHost = iiCanister ? `${proto}//${iiCanister}.localhost:8000` : `${proto}//localhost:8000`;
-                            const origin = window.location.origin || `${proto}//${window.location.host}`;
-                            const redirect_uri = `${origin}/dashboard`;
-                            const popupUrl = `${iiHost}/#authorize?canisterId=${encodeURIComponent(appCanister)}&origin=${encodeURIComponent(origin)}&redirect_uri=${encodeURIComponent(redirect_uri)}`;
-                            window.open(popupUrl, 'icp_auth', 'width=600,height=800');
-                          } catch (e) {
-                            // last resort: open public identity host
-                            window.open('https://identity.ic0.app/#authorize', '_blank');
+                            await authClient.login({
+                              identityProvider: iiHost,
+                              onSuccess: async () => {
+                                try { localStorage.setItem('cv:isAuthenticated', '1'); } catch (e) {}
+                                setIsAuthenticated(true);
+                                try { window.location.href = '/dashboard'; } catch (e) { window.location.reload(); }
+                              }
+                            });
+                          } catch (err) {
+                            console.debug('AuthClient.login failed, fallback to opening hosted II', err);
+                            try {
+                              const iiCanister = (process.env.NEXT_PUBLIC_II_CANISTER_ID || '').trim();
+                              const appCanister = (process.env.NEXT_PUBLIC_APP_CANISTER_ID || process.env.NEXT_PUBLIC_IDENTITY_CANISTER_ID || '').trim();
+                              const proto = window.location.protocol || 'http:';
+                              const iiHost = iiCanister ? `${proto}//${iiCanister}.localhost:8000` : `${proto}//localhost:8000`;
+                              const origin = window.location.origin || `${proto}//${window.location.host}`;
+                              const redirect_uri = `${origin}/dashboard`;
+                              const popupUrl = `${iiHost}/#authorize?canisterId=${encodeURIComponent(appCanister)}&origin=${encodeURIComponent(origin)}&redirect_uri=${encodeURIComponent(redirect_uri)}`;
+                              window.open(popupUrl, 'icp_auth', 'width=600,height=800');
+                            } catch (e) {
+                              // last resort: open public identity host
+                              window.open('https://identity.ic0.app/#authorize', '_blank');
+                            }
                           }
-                        }
-                      }}>
-                        Login (Local II)
-                      </Button>
+                        }}>
+                          Login (Local II)
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
               )}
               {/* Registration moved to dashboard: Create Account modal removed from top navigation. */}
             </div>
@@ -253,7 +254,6 @@ export default function TopNavigation() {
     </nav>
   );
 }
-
 const NAME_MAX = 40;
 const BIO_MAX = 200;
 
