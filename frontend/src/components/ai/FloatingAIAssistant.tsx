@@ -139,7 +139,17 @@ export default function FloatingAIAssistant() {
 
   const extractJobRequirementsFromChat = () => {
     // Extract job requirements from the current conversation
-    const requirements = {
+    const requirements: {
+      keywords: string;
+      location: string;
+      required_skills: string[];
+      experience_level: string;
+      job_type: string;
+      industry: string;
+      remote_preference: string;
+      budget_min: number | null;
+      budget_max: number | null;
+    } = {
       keywords: '',
       location: '',
       required_skills: [],
