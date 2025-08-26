@@ -125,10 +125,9 @@ class ExplorerAgent:
             
             # Start scraping with streaming
             async for job_data in scraper.scrape_jobs(search_params):
-                # Skip None jobs (already filtered by scraper)
+                # Accept all jobs (no filtering)
                 if job_data is None:
-                    filtered_jobs += 1
-                    logger.debug(f"Job already filtered out by {scraper.name}")
+                    logger.debug(f"Job data is None from {scraper.name}, skipping")
                     continue
                     
                 total_jobs += 1
@@ -137,10 +136,10 @@ class ExplorerAgent:
                 # Process the job data
                 processed_job = await self.processor.process_job(job_data)
                 
-                # Only stream jobs that passed quality validation
+                # Accept all processed jobs (no quality filtering)
                 if processed_job is not None:
                     valid_jobs += 1
-                    logger.debug(f"Job passed processing: {processed_job.get('title', 'No title')}")
+                    logger.debug(f"Job processed successfully: {processed_job.get('title', 'No title')}")
                     # Stream the processed job
                     await websocket.send_json({
                         "type": "job_data",
@@ -152,8 +151,7 @@ class ExplorerAgent:
                     await asyncio.sleep(self.settings.rate_limit)
                 else:
                     filtered_jobs += 1
-                    # Log that a job was filtered out
-                    logger.debug(f"Job filtered out by quality standards from {scraper.name}")
+                    logger.debug(f"Job processing failed from {scraper.name}")
             
             # Send scraper completion status with filtering statistics
             await websocket.send_json({

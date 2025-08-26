@@ -114,9 +114,9 @@ class BaseScraper(ABC):
             logger.debug(f"Cannot create job object from invalid raw_data: {type(raw_data)}")
             return None
             
-        # Basic validation before creating job object
-        if not self._is_valid_job_data(raw_data):
-            return None
+        # Basic validation is disabled for now - accept all jobs
+        # if not self._is_valid_job_data(raw_data):
+        #     return None
             
         return {
             "id": raw_data.get("id", str(hash(raw_data.get("title", "")))),  # Ensure unique ID

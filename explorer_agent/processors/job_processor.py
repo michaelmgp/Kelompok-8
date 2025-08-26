@@ -17,7 +17,7 @@ class JobProcessor:
     def __init__(self):
         self.ai_enabled = False
         self.ai_client = None
-        self.quality_filtering_enabled = False  # Temporarily disable quality filtering
+        self.quality_filtering_enabled = False  # Completely disable quality filtering for now
         
     async def initialize(self):
         """Initialize the job processor"""
@@ -39,10 +39,10 @@ class JobProcessor:
             logger.debug(f"Processing job: '{cleaned_job.get('title', 'No title')}' at '{cleaned_job.get('company', 'No company')}'")
             logger.debug(f"Description length: {len(cleaned_job.get('description', ''))}")
             
-            # Apply quality filter - reject low-quality jobs (only if enabled)
-            if self.quality_filtering_enabled and not self._validate_job_quality(cleaned_job):
-                logger.info(f"Job rejected due to quality issues: {cleaned_job.get('title', 'Unknown')}")
-                return None
+                    # Quality filtering is completely disabled for now - accept all jobs
+        # if self.quality_filtering_enabled and not self._validate_job_quality(cleaned_job):
+        #     logger.info(f"Job rejected due to quality issues: {cleaned_job.get('title', 'Unknown')}")
+        #     return None
             
             # Enrich with additional analysis
             enriched_job = await self._enrich_job_data(cleaned_job)

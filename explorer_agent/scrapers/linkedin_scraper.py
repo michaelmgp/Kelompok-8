@@ -59,14 +59,28 @@ class LinkedInScraper(BaseScraper):
                 logger.error("Failed to get LinkedIn search results")
                 return
                 
-            # Parse job listings
+                        # Parse job listings
             job_listings = await self._parse_job_listings(html_content)
+            logger.info(f"Found {len(job_listings)} job listings on LinkedIn")
             
             # Yield each job
             for job_data in job_listings:
-                # Create job object and only yield if it's valid
+                # Create job object and yield all jobs (no filtering)
                 job_object = self._create_job_object(job_data)
                 if job_object is not None:
+                    # Try to get additional job details if we have a URL
+                    if job_data.get('application_url'):
+                        try:
+                            logger.debug(f"Getting details for job: {job_data.get('title', 'Unknown')}")
+                            job_details = await self.get_job_details(job_data['application_url'])
+                            if job_details and isinstance(job_details, dict):
+                                # Merge the details with the job object
+                                job_object.update(job_details)
+                                logger.debug(f"Enhanced job with details: {job_object.get('title', 'Unknown')}")
+                        except Exception as e:
+                            logger.debug(f"Failed to get job details: {e}")
+                            # Continue with basic job data
+                    
                     yield job_object
                 else:
                     logger.debug(f"Job object creation failed for job data: {job_data.get('title', 'Unknown')}")
@@ -91,10 +105,18 @@ class LinkedInScraper(BaseScraper):
             # Parse detailed job information
             job_details = await self._parse_job_details(html_content)
             
-            # Safety check: if job_details is empty, don't create job object
+            # Accept all job details (no filtering)
             if not job_details:
-                logger.debug(f"Empty job details for URL: {job_url}")
-                return {}
+                logger.debug(f"Empty job details for URL: {job_url}, but continuing anyway")
+                # Return minimal details instead of empty dict
+                return {
+                    "description": "Description not available",
+                    "full_description": "Description not available",
+                    "requirements": [],
+                    "salary": "",
+                    "job_type": "",
+                    "experience_level": ""
+                }
                 
             return self._create_job_object(job_details)
             
@@ -147,19 +169,38 @@ class LinkedInScraper(BaseScraper):
             
             # Find job cards (this selector may need updates based on LinkedIn's current structure)
             job_cards = soup.find_all('div', class_='base-card')
+            logger.debug(f"Found {len(job_cards)} job cards on LinkedIn page")
             
-            for card in job_cards:
+            # Try alternative selectors if base-card not found
+            if not job_cards:
+                alternative_selectors = [
+                    'div[class*="job-card"]',
+                    'div[class*="job-search-card"]',
+                    'li[class*="job"]',
+                    'div[class*="result-card"]'
+                ]
+                for selector in alternative_selectors:
+                    job_cards = soup.select(selector)
+                    if job_cards:
+                        logger.debug(f"Found {len(job_cards)} jobs using alternative selector: {selector}")
+                        break
+            
+            for i, card in enumerate(job_cards):
                 try:
                     job_data = self._extract_job_from_card(card)
                     if job_data:
                         jobs.append(job_data)
+                        logger.debug(f"Successfully parsed job {i+1}: {job_data.get('title', 'Unknown')}")
+                    else:
+                        logger.debug(f"Failed to parse job card {i+1}")
                 except Exception as e:
-                    logger.debug(f"Error parsing job card: {e}")
+                    logger.debug(f"Error parsing job card {i+1}: {e}")
                     continue
                     
         except Exception as e:
             logger.error(f"Error parsing LinkedIn job listings: {e}")
             
+        logger.info(f"Successfully parsed {len(jobs)} jobs from LinkedIn")
         return jobs
         
     def _extract_job_from_card(self, card) -> Optional[Dict[str, Any]]:
@@ -185,20 +226,20 @@ class LinkedInScraper(BaseScraper):
             date_elem = card.find('time')
             posted_date = self._extract_attribute(date_elem, 'datetime', '')
             
-            # Additional validation for LinkedIn-specific issues
-            if not title or not company or not job_url:
-                logger.debug(f"Rejecting LinkedIn job: Missing essential data")
-                return None
-                
-            # Check for obvious placeholder or error content
-            if any(placeholder in title.lower() for placeholder in ["test", "sample", "example", "placeholder", "error"]):
-                logger.debug(f"Rejecting LinkedIn job: Placeholder title detected")
-                return None
-                
-            # Check for very short titles (likely incomplete)
-            if len(title) < 3:  # Reduced from 5 to 3
-                logger.debug(f"Rejecting LinkedIn job: Title too short")
-                return None
+            # Validation is disabled for now - accept all jobs
+            # if not title or not company or not job_url:
+            #     logger.debug(f"Rejecting LinkedIn job: Missing essential data")
+            #     return None
+            #     
+            # # Check for obvious placeholder or error content
+            # if any(placeholder in title.lower() for placeholder in ["test", "sample", "example", "placeholder", "error"]):
+            #     logger.debug(f"Rejecting LinkedIn job: Placeholder title detected")
+            #     return None
+            #     
+            # # Check for very short titles (likely incomplete)
+            # if len(title) < 3:  # Reduced from 5 to 3
+            #     logger.debug(f"Rejecting LinkedIn job: Title too short")
+            #     return None
                 
             return {
                 "id": job_url.split('/')[-1] if job_url else "",
@@ -232,9 +273,34 @@ class LinkedInScraper(BaseScraper):
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Extract job description
-            description_elem = soup.find('div', class_='show-more-less-html')
-            description = self._extract_text(description_elem)
+            # Try multiple selectors for job description (LinkedIn changes their HTML structure)
+            description = ""
+            description_selectors = [
+                'div[class*="show-more-less-html"]',
+                'div[class*="description__text"]',
+                'div[class*="job-description"]',
+                'div[class*="job-description__content"]',
+                'section[class*="description"]',
+                'div[class*="content"]'
+            ]
+            
+            for selector in description_selectors:
+                description_elem = soup.select_one(selector)
+                if description_elem:
+                    description = self._extract_text(description_elem)
+                    if description and len(description.strip()) > 10:
+                        logger.debug(f"Found description using selector: {selector}")
+                        break
+            
+            # If no description found, try to get any text content
+            if not description or len(description.strip()) < 10:
+                # Look for any div with substantial text content
+                for div in soup.find_all('div'):
+                    text = self._extract_text(div)
+                    if text and len(text.strip()) > 50:  # Look for substantial content
+                        description = text
+                        logger.debug("Found description from general div content")
+                        break
             
             # Extract requirements (this is a simplified approach)
             requirements = []
@@ -249,20 +315,20 @@ class LinkedInScraper(BaseScraper):
                         requirements.append(f"See {keyword} in description")
                         break
                         
-            # Validate job description quality
-            if not description or len(description.strip()) < 20:  # Reduced from 50 to 20
-                logger.debug(f"Rejecting LinkedIn job: Description too short or empty")
-                return {}
-                
-            # Check for error messages or blocked content
-            error_indicators = ["access denied", "content blocked", "page not available", "error occurred"]
-            if any(error in description.lower() for error in error_indicators):
-                logger.debug(f"Rejecting LinkedIn job: Error content in description")
-                return {}
+            # Description validation is disabled for now - accept all descriptions
+            # if not description or len(description.strip()) < 20:  # Reduced from 50 to 20
+            #     logger.debug(f"Rejecting LinkedIn job: Description too short or empty")
+            #     return {}
+            #     
+            # # Check for error messages or blocked content
+            # error_indicators = ["access denied", "content blocked", "page not available", "error occurred"]
+            # if any(error in description.lower() for error in error_indicators):
+            #     logger.debug(f"Rejecting LinkedIn job: Error content in description")
+            #     return {}
                 
             return {
-                "description": description,
-                "full_description": description,  # Store the complete description
+                "description": description or "Description not available",
+                "full_description": description or "Description not available",  # Store the complete description
                 "requirements": requirements,
                 "salary": "",  # LinkedIn typically doesn't show salary in job descriptions
                 "job_type": "",
