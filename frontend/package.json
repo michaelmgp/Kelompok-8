@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 5000",
+    "start:dev": "next dev -p 5000",
     "build": "next build",
     "start": "next start -p 5000",
     "lint": "next lint",
@@ -14,31 +15,45 @@
     "security:check": "npm audit --audit-level=moderate",
     "deps:check": "npm outdated",
     "deps:update": "npm update",
-    "deps:update-interactive": "npx npm-check-updates -i"
+    "deps:update-interactive": "npx npm-check-updates -i",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed"
+  },
+  "playwright": {
+    "testDir": "e2e"
   },
   "dependencies": {
+    "@dfinity/agent": "0.12.2",
+    "@dfinity/auth-client": "0.12.2",
+    "@dfinity/candid": "0.12.2",
+    "@dfinity/identity": "0.12.2",
+    "@dfinity/principal": "0.12.2",
+    "@radix-ui/react-avatar": "^1.1.4",
+    "@radix-ui/react-slot": "^1.2.0",
+    "argon2-browser": "^1.18.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "fs": "^0.0.1-security",
+    "lucide-react": "^0.453.0",
     "next": "^14.2.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@radix-ui/react-avatar": "^1.1.4",
-    "@radix-ui/react-slot": "^1.2.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.453.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@dfinity/internet-identity-playwright": "^2.0.0",
+    "@playwright/test": "^1.55.0",
     "@types/node": "^20.16.11",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.3",
+    "npm-check-updates": "^16.14.17",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.6.3",
-    "npm-check-updates": "^16.14.17"
+    "typescript": "^5.6.3"
   },
   "engines": {
     "node": ">=18.0.0",
